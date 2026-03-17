@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+venv/
+.venv/
+data/uploads/*
+data/processed/*
+data/vectorstore/*
+data/web_cache/*
+!data/uploads/.gitkeep
+!data/processed/.gitkeep
+!data/vectorstore/.gitkeep
+!data/web_cache/.gitkeep

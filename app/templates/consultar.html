@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Consultar{% endblock %}
+{% block page_title %}Asistente Documental{% endblock %}
+{% block page_subtitle %}Consulta inteligente basada en el repositorio institucional{% endblock %}
+
+{% block content %}
+
+<style>
+    /* Estilos locales para la vista de consulta */
+    .context-banner {
+        background: var(--color-primary-light);
+        border: 1px solid var(--color-primary-border);
+        border-radius: var(--radius-lg);
+        padding: 0.75rem 1.25rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .context-label {
+        font-size: 0.75rem;
+        color: var(--color-primary);
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        margin-bottom: 0.15rem;
+        display: block;
+    }
+
+    .response-card {
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .response-card::before {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; bottom: 0;
+        width: 4px;
+        background: var(--color-primary);
+    }
+
+    .question-box {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--color-bg);
+    }
+
+    .question-text {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--color-text-main);
+    }
+
+    .ia-answer {
+        line-height: 1.7;
+        font-size: 1rem;
+        color: var(--color-text-main);
+        white-space: pre-wrap;
+    }
+
+    .sources-section {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .source-item {
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .source-info { display: flex; align-items: center; gap: 0.6rem; }
+    .source-name { font-weight: 600; color: var(--color-text-main); font-size: 0.85rem; }
+    .source-score { font-size: 0.75rem; color: var(--color-text-muted); font-weight: 500; }
+
+    .query-form-container {
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-md);
+        padding: 1.5rem;
+    }
+
+    .query-textarea {
+        width: 100%;
+        border: 1.5px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 1rem;
+        font-size: 1rem;
+        resize: none;
+        transition: all 0.2s;
+        outline: none;
+        margin-bottom: 1rem;
+    }
+
+    .query-textarea:focus {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px var(--color-primary-light);
+    }
+
+    .btn-submit {
+        background: var(--color-primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius-md);
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-submit:hover { background: var(--color-primary-hover); }
+
+    .detection-badge {
+        background: var(--color-success-bg);
+        border: 1px solid var(--color-success);
+        color: var(--color-success);
+        padding: 0.4rem 0.8rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.75rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-bottom: 1rem;
+    }
+</style>
+
+<!-- ZONA DE CONTEXTO / ALCANCE -->
+<div class="context-banner">
+    <div>
+        <span class="context-label">Alcance Activo</span>
+        <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.95rem;">
+            <i class="bi {% if scope == 'doc' %}bi-file-earmark-text{% else %}bi-database-check{% endif %}" style="color: var(--color-primary);"></i>
+            {% if scope == 'doc' and doc_seleccionado %}
+                Documento: {{ doc_seleccionado }}
+            {% else %}
+                Todo el repositorio documental
+            {% endif %}
+        </div>
+    </div>
+    {% if scope == 'doc' %}
+    <a href="{{ url_for('consultar') }}" 
+       style="font-size: 0.75rem; color: var(--color-error); text-decoration: none; font-weight: 700; display: flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.75rem; background: var(--color-error-bg); border-radius: var(--radius-md); border: 1px solid var(--color-error);">
+        <i class="bi bi-x-lg"></i> Limpiar Filtro
+    </a>
+    {% endif %}
+</div>
+
+<!-- RESULTADO RAG -->
+{% if respuesta_rag %}
+<div class="response-card">
+    
+    {% if auto_detected_doc %}
+    <div class="detection-badge">
+        <i class="bi bi-magic"></i> Contexto detectado: {{ auto_detected_doc }}
+    </div>
+    {% endif %}
+
+    <div class="question-box">
+        <span class="context-label">Tu pregunta</span>
+        <div class="question-text">{{ pregunta_hecha }}</div>
+    </div>
+    
+    <div class="ia-answer-container">
+        <span class="context-label" style="color: var(--color-primary);">Respuesta del Asistente</span>
+        <div class="ia-answer">{{ respuesta_rag }}</div>
+    </div>
+
+    {% if fuentes %}
+    <div class="sources-section">
+        <span class="context-label" style="margin-bottom: 1rem;">Fuentes de Verdad ({{ fuentes|length }})</span>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+            {% for src in fuentes %}
+            <div class="source-item">
+                <div class="source-info">
+                    <i class="bi bi-file-earmark-text" style="color: var(--color-text-muted);"></i>
+                    <span class="source-name">{{ src.filename or src.document_id }}</span>
+                </div>
+                <span class="source-score">Confianza: {{ (src.score * 100)|round(0) }}%</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- FORMULARIO DE CONSULTA -->
+<div class="query-form-container">
+    <form action="{{ url_for('consultar') }}" method="POST">
+        <input type="hidden" name="scope" value="{{ scope }}">
+        <input type="hidden" name="doc_id" value="{{ doc_seleccionado or '' }}">
+
+        <textarea id="pregunta" name="pregunta" rows="3" class="query-textarea"
+            placeholder="Escribe tu consulta aquí..." required autofocus></textarea>
+
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 0.8rem; color: var(--color-text-muted); display: flex; align-items: center; gap: 0.4rem;">
+                <i class="bi bi-shield-lock"></i> Procesado localmente con {{ config['OLLAMA_CHAT_MODEL'] or 'EPIIS AI' }}
+            </div>
+            <button type="submit" class="btn-submit">
+                <i class="bi bi-send-fill"></i> Enviar Consulta
+            </button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

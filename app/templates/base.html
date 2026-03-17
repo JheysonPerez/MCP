@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPIIS – {% block title %}Sistema Documental{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            /* Design Tokens */
+            --color-primary: #1d4ed8;
+            --color-primary-hover: #1e40af;
+            --color-primary-light: #eff6ff;
+            --color-bg: #f8fafc;
+            --color-surface: #ffffff;
+            --color-border: #e2e8f0;
+            --color-success: #10b981;
+            --color-success-bg: #f0fdf4;
+            --color-error: #ef4444;
+            --color-error-bg: #fef2f2;
+            --color-text-main: #1e293b;
+            --color-text-muted: #64748b;
+            --radius-lg: 12px;
+            --radius-md: 8px;
+            --radius-pill: 50px;
+            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        /* ── RESET & BASE ─────────────────────────────── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            background: var(--color-bg);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: var(--color-text-main);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── LAYOUT ───────────────────────────────────── */
+        .app-shell {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── SIDEBAR ──────────────────────────────────── */
+        .sidebar {
+            width: 240px;
+            min-width: 240px;
+            height: 100vh;
+            background: #fff;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.22s ease, min-width 0.22s ease;
+            overflow: hidden;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .sidebar.collapsed {
+            width: 60px;
+            min-width: 60px;
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.1rem 1rem 0.9rem;
+            border-bottom: 1px solid #e5e7eb;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-weight: 700;
+            font-size: 1rem;
+            color: #1d4ed8;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .sidebar-brand i {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand span {
+            transition: opacity 0.18s;
+        }
+
+        .sidebar.collapsed .sidebar-brand span {
+            opacity: 0;
+            width: 0;
+        }
+
+        .sidebar-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #6b7280;
+            padding: 4px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .sidebar-toggle:hover {
+            background: #f3f4f6;
+            color: #111827;
+        }
+
+        .sidebar-toggle i {
+            font-size: 1rem;
+        }
+
+        /* NAV LINKS */
+        .sidebar nav {
+            flex: 1;
+            padding: 0.5rem 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .sidebar nav a {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 0.55rem 1rem;
+            color: #374151;
+            text-decoration: none;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            border-left: 3px solid transparent;
+            transition: background 0.12s, color 0.12s;
+        }
+
+        .sidebar nav a:hover {
+            background: #f3f4f6;
+            color: #111827;
+        }
+
+        .sidebar nav a.active {
+            background: #eff6ff;
+            border-left-color: #1d4ed8;
+            color: #1d4ed8;
+            font-weight: 600;
+        }
+
+        .sidebar nav a i {
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .sidebar nav a span {
+            transition: opacity 0.15s;
+            overflow: hidden;
+        }
+
+        .sidebar.collapsed nav a span {
+            opacity: 0;
+            width: 0;
+        }
+
+        .sidebar.collapsed nav a {
+            justify-content: center;
+            padding: 0.55rem;
+        }
+
+        /* SIDEBAR FOOTER */
+        .sidebar-footer {
+            padding: 0.75rem 1rem;
+            border-top: 1px solid #e5e7eb;
+            flex-shrink: 0;
+        }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-size: 0.82rem;
+            color: #6b7280;
+            white-space: nowrap;
+            margin-bottom: 0.5rem;
+        }
+
+        .sidebar-user span {
+            transition: opacity 0.15s;
+        }
+
+        .sidebar.collapsed .sidebar-user span {
+            opacity: 0;
+            width: 0;
+        }
+
+        .sidebar-user i {
+            flex-shrink: 0;
+        }
+
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #dc2626;
+            text-decoration: none;
+            font-size: 0.82rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            white-space: nowrap;
+            width: 100%;
+        }
+
+        .logout-btn:hover {
+            color: #991b1b;
+        }
+
+        .logout-btn span {
+            transition: opacity 0.15s;
+        }
+
+        .sidebar.collapsed .logout-btn span,
+        .sidebar.collapsed .sidebar-user {
+            justify-content: center;
+        }
+
+        .sidebar.collapsed .logout-btn span {
+            opacity: 0;
+            width: 0;
+        }
+
+        /* ── MAIN CONTENT ─────────────────────────────── */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        .topbar {
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 0.75rem 1.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .topbar-title h4 {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        .topbar-title small {
+            color: #6b7280;
+            font-size: 0.78rem;
+        }
+
+        .topbar-user {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        .page-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.75rem;
+        }
+
+        /* ── TOAST NOTIFICATIONS ──────────────────────── */
+        #toast-container {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-width: 340px;
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            background: #fff;
+            border-radius: 10px;
+            padding: 1rem 3rem 1rem 1.25rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border-left: 4px solid #6b7280;
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            font-size: 0.875rem;
+            min-width: 300px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .toast.success {
+            border-left-color: #16a34a;
+            background: #f0fdf4;
+        }
+
+        .toast.error {
+            border-left-color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .toast.warning {
+            border-left-color: #d97706;
+            background: #fffbeb;
+        }
+
+        .toast.info {
+            border-left-color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .toast-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .toast.success .toast-icon {
+            color: #16a34a;
+        }
+
+        .toast.error .toast-icon {
+            color: #dc2626;
+        }
+
+        .toast.warning .toast-icon {
+            color: #d97706;
+        }
+
+        .toast.info .toast-icon {
+            color: #2563eb;
+        }
+
+        .toast-body {
+            flex: 1;
+            color: #111827;
+            line-height: 1.5;
+            font-weight: 500;
+        }
+
+        .toast-close {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(0, 0, 0, 0.03);
+            border: none;
+            cursor: pointer;
+            color: #9ca3af;
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toast-close:hover {
+            background: rgba(0, 0, 0, 0.08);
+            color: #374151;
+            transform: scale(1.05);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(12px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* ── CONFIRM MODAL ────────────────────────────── */
+        #confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 9998;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #confirm-overlay.open {
+            display: flex;
+        }
+
+        #confirm-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 1.75rem;
+            max-width: 380px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+        }
+
+        #confirm-card h5 {
+            margin: 0 0 0.5rem;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        #confirm-card p {
+            margin: 0 0 1.25rem;
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .confirm-actions {
+            display: flex;
+            gap: 0.6rem;
+            justify-content: flex-end;
+        }
+
+        .confirm-actions button {
+            padding: 0.45rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        #confirm-cancel {
+            background: #f3f4f6;
+            color: #374151;
+            border-color: #e5e7eb;
+        }
+
+        #confirm-cancel:hover {
+            background: #e5e7eb;
+        }
+
+        #confirm-ok {
+            background: #dc2626;
+            color: #fff;
+        }
+
+        #confirm-ok:hover {
+            background: #b91c1c;
+        }
+
+        /* ── CARDS & UTILITIES ────────────────────────── */
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .stat-icon {
+            font-size: 1.6rem;
+            color: #1d4ed8;
+            flex-shrink: 0;
+        }
+
+        .stat-label {
+            font-size: 0.78rem;
+            color: #6b7280;
+            display: block;
+            margin-bottom: 0.15rem;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #111827;
+            line-height: 1;
+        }
+
+        .source-card {
+            padding: 0.85rem 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+        }
+
+        .source-card .source-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.4rem;
+        }
+
+        .source-card .doc-name {
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            color: #111827;
+        }
+
+        .score-badge {
+            background: #1d4ed8;
+            color: #fff;
+            padding: 0.15rem 0.55rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
+        }
+
+        .source-fragment {
+            color: #6b7280;
+            font-size: 0.82rem;
+            border-left: 3px solid #e5e7eb;
+            padding-left: 0.75rem;
+            margin-top: 0.5rem;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+
+<body>
+
+    {% if session.get('user_id') %}
+
+    <!-- ── TOAST CONTAINER ── -->
+    <div id="toast-container"></div>
+
+    <!-- ── CONFIRM MODAL ── -->
+    <div id="confirm-overlay">
+        <div id="confirm-card">
+            <h5 id="confirm-title">Confirmar acción</h5>
+            <p id="confirm-message">¿Estás seguro de que deseas continuar?</p>
+            <div class="confirm-actions">
+                <button id="confirm-cancel" onclick="closeConfirm()">Cancelar</button>
+                <button id="confirm-ok">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-shell">
+        <!-- ── SIDEBAR ── -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-brand">
+                    <i class="bi bi-buildings"></i>
+                    <span>EPIIS</span>
+                </div>
+                <button class="sidebar-toggle" id="sidebar-toggle" title="Colapsar menú">
+                    <i class="bi bi-layout-sidebar-reverse" id="toggle-icon"></i>
+                </button>
+            </div>
+
+            <nav>
+                <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">
+                    <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('consultar') }}" class="{{ 'active' if request.endpoint == 'consultar' else '' }}">
+                    <i class="bi bi-search"></i><span>Consultar</span>
+                </a>
+                <a href="{{ url_for('documentos') }}"
+                    class="{{ 'active' if request.endpoint == 'documentos' else '' }}">
+                    <i class="bi bi-folder2-open"></i><span>Documentos</span>
+                </a>
+                <a href="{{ url_for('historial') }}" class="{{ 'active' if request.endpoint == 'historial' else '' }}">
+                    <i class="bi bi-clock-history"></i><span>Historial</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <i class="bi bi-person-circle"></i>
+                    <span>{{ session.get('username') }}</span>
+                </div>
+                <button class="logout-btn"
+                    onclick="confirmAction('¿Cerrar sesión?', '¿Deseas salir del sistema?', function(){ window.location = '{{ url_for('logout') }}'; })">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Salir</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- ── MAIN CONTENT ── -->
+        <div class="main-area">
+            <div class="topbar">
+                <div class="topbar-title">
+                    <h4>{% block page_title %}{% endblock %}</h4>
+                    <small>{% block page_subtitle %}{% endblock %}</small>
+                </div>
+                <div class="topbar-user">
+                    <i class="bi bi-person-circle"></i>
+                    {{ session.get('username') }}
+                </div>
+            </div>
+            <div class="page-body">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ── FLASK FLASH → TOAST ── -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            {% for category, message in messages %}
+            showToast({{ message | tojson }}, {{ category | tojson }});
+        {% endfor %}
+});
+    </script>
+    {% endif %}
+    {% endwith %}
+
+    {% else %}
+    <!-- LOGIN LAYOUT (no sidebar) -->
+    <main style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:1rem;">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div id="toast-container"></div>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                {% for category, message in messages %}
+                showToast({{ message | tojson }}, {{ category | tojson }});
+            {% endfor %}
+    });
+        </script>
+        {% endif %}
+        {% endwith %}
+        {% block content_public %}{% endblock %}
+    </main>
+    {% endif %}
+
+    <!-- ── JS GLOBAL ── -->
+    <script>
+        // ── TOAST ──────────────────────────────────────
+        const TOAST_ICONS = {
+            success: 'bi-check-circle',
+            error: 'bi-exclamation-triangle',
+            warning: 'bi-exclamation-circle',
+            info: 'bi-info-circle',
+        };
+        function showToast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+        <i class="bi ${TOAST_ICONS[type] || 'bi-info-circle'} toast-icon"></i>
+        <span class="toast-body">${message}</span>
+        <button class="toast-close" onclick="this.parentElement.remove()"><i class="bi bi-x"></i></button>
+    `;
+            container.appendChild(toast);
+            if (duration > 0) setTimeout(() => toast.remove(), duration);
+        }
+
+        // ── CONFIRM MODAL ──────────────────────────────
+        let _confirmCallback = null;
+        function confirmAction(title, message, callback) {
+            document.getElementById('confirm-title').textContent = title || 'Confirmar';
+            document.getElementById('confirm-message').textContent = message || '';
+            _confirmCallback = callback;
+            document.getElementById('confirm-overlay').classList.add('open');
+        }
+        function closeConfirm() {
+            document.getElementById('confirm-overlay').classList.remove('open');
+            _confirmCallback = null;
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('confirm-ok')?.addEventListener('click', function () {
+                if (_confirmCallback) _confirmCallback();
+                closeConfirm();
+            });
+            document.getElementById('confirm-overlay')?.addEventListener('click', function (e) {
+                if (e.target === this) closeConfirm();
+            });
+        });
+
+        // ── SIDEBAR TOGGLE ─────────────────────────────
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebar = document.getElementById('sidebar');
+            const btn = document.getElementById('sidebar-toggle');
+            const icon = document.getElementById('toggle-icon');
+            if (!sidebar || !btn) return;
+
+            const saved = localStorage.getItem('sidebar-collapsed') === 'true';
+            if (saved) {
+                sidebar.classList.add('collapsed');
+                icon.className = 'bi bi-layout-sidebar';
+            }
+
+            btn.addEventListener('click', function () {
+                const collapsed = sidebar.classList.toggle('collapsed');
+                icon.className = collapsed ? 'bi bi-layout-sidebar' : 'bi bi-layout-sidebar-reverse';
+                localStorage.setItem('sidebar-collapsed', collapsed);
+            });
+        });
+    </script>
+</body>
+
+</html>

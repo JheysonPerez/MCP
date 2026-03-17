@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Documentos{% endblock %}
+{% block page_title %}Gestión de Documentos{% endblock %}
+{% block page_subtitle %}Administra el repositorio y el índice semántico{% endblock %}
+
+{% block content %}
+
+<!-- HEADER CON ACCIONES -->
+<div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
+    <form action="{{ url_for('sync_all') }}" method="POST">
+        <button type="submit" class="btn-sync" 
+            style="background: #fff; color: #1d4ed8; border: 1.5px solid #1d4ed8; border-radius: 7px; padding: 0.5rem 1rem; font-size: 0.82rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.15s;">
+            <i class="bi bi-arrow-repeat"></i> Sincronizar Repositorio
+        </button>
+    </form>
+</div>
+
+<!-- UPLOAD CARD -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 0.4rem;">
+        <i class="bi bi-upload" style="color: #1d4ed8;"></i> Subir nuevo documento
+    </h5>
+    <form action="{{ url_for('upload_document') }}" method="POST" enctype="multipart/form-data">
+        <div style="border: 2px dashed #d1d5db; border-radius: 8px; padding: 1.5rem; text-align: center; margin-bottom: 1rem; background: #f9fafb; cursor: pointer;">
+            <i class="bi bi-cloud-arrow-up" style="font-size: 1.75rem; color: #9ca3af; display: block; margin-bottom: 0.5rem;"></i>
+            <p style="margin: 0; font-size: 0.85rem; font-weight: 600; color: #374151;">Selecciona o arrastra un archivo</p>
+            <small style="color: #9ca3af; font-size: 0.75rem;">PDF, DOCX o TXT</small>
+            <div style="margin-top: 0.75rem;">
+                <input type="file" id="file" name="file" accept=".txt,.pdf,.docx" required style="font-size: 0.75rem;">
+            </div>
+        </div>
+        <button type="submit"
+            style="background: #1d4ed8; color: #fff; border: none; border-radius: 7px; padding: 0.55rem 1.25rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: background 0.15s;">
+            <i class="bi bi-plus-lg"></i> Subir e Indexar
+        </button>
+    </form>
+</div>
+
+<!-- LISTADO CARD -->
+<div class="card">
+    <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 0.4rem;">
+        <i class="bi bi-folder2-open" style="color: #1d4ed8;"></i> Documentos registrados
+    </h5>
+    {% if documentos %}
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+            <thead>
+                <tr style="border-bottom: 2px solid #e5e7eb;">
+                    <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Nombre</th>
+                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Procesamiento</th>
+                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Índice Semántico</th>
+                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Chunks</th>
+                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in documentos %}
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 0.85rem 0.75rem;">
+                        <div style="font-weight: 600; color: #111827; margin-bottom: 0.1rem;">{{ doc.filename }}</div>
+                        <div style="font-size: 0.75rem; color: #9ca3af;">ID: #{{ doc.id }} · {{ doc.created_at.strftime('%d/%m/%Y %H:%M') if doc.created_at else '—' }}</div>
+                    </td>
+                    <td style="padding: 0.85rem 0.75rem; text-align: center;">
+                        {% if doc.processing_status == 'completed' %}
+                            <span style="background: #f0fdf4; color: #16a34a; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #bbf7d0;">
+                                <i class="bi bi-check-circle"></i> LISTO
+                            </span>
+                        {% elif doc.processing_status == 'failed' %}
+                            <span style="background: #fef2f2; color: #dc2626; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #fecaca;" title="Ver error en logs">
+                                <i class="bi bi-exclamation-triangle"></i> ERROR
+                            </span>
+                        {% else %}
+                            <span style="background: #eff6ff; color: #2563eb; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #bfdbfe;">
+                                <i class="bi bi-clock"></i> PENDIENTE
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 0.85rem 0.75rem; text-align: center;">
+                        {% if doc.is_indexed %}
+                            <span style="background: #fdf4ff; color: #a21caf; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #f5d0fe;">
+                                <i class="bi bi-cpu"></i> INDEXADO
+                            </span>
+                        {% else %}
+                            <span style="background: #f9fafb; color: #6b7280; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #e5e7eb;">
+                                <i class="bi bi-dash-circle"></i> SIN ÍNDICE
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 0.85rem 0.75rem; text-align: center; color: #374151; font-weight: 600;">
+                        {{ doc.chunk_count or 0 }}
+                    </td>
+                    <td style="padding: 0.85rem 0.75rem; text-align: center;">
+                        <div style="display: flex; justify-content: center; gap: 0.5rem;">
+                            <a href="{{ url_for('consultar', doc_id=doc.id) }}" title="Consultar" 
+                               style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-decoration: none; transition: all 0.2s;">
+                                <i class="bi bi-chat-left-text"></i>
+                            </a>
+                            <form action="{{ url_for('reindex_document', doc_id=doc.id) }}" method="POST" style="display: inline;">
+                                <button type="submit" title="Reindexar" 
+                                    style="background: #fff; color: #6b7280; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </form>
+                            <button title="Eliminar" 
+                                onclick="confirmAction('¿Eliminar documento?', 'Esta acción borrará el archivo físico y su índice semántico permanentemente.', function(){ 
+                                    const f = document.createElement('form');
+                                    f.method = 'POST';
+                                    f.action = '{{ url_for('delete_document', doc_id=doc.id) }}';
+                                    document.body.appendChild(f);
+                                    f.submit();
+                                })"
+                                style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 2.5rem 0; color: #9ca3af;">
+        <i class="bi bi-folder2-open" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+        <p style="margin: 0; font-size: 0.875rem;">No hay documentos registrados aún.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

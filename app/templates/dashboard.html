@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Resumen general del sistema de gestión documental{% endblock %}
+
+{% block content %}
+
+<!-- STAT CARDS -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1.75rem;">
+    <div class="card stat-card">
+        <i class="bi bi-files stat-icon"></i>
+        <div>
+            <span class="stat-label">Total de documentos</span>
+            <div class="stat-value">{{ stats.total_docs }}</div>
+        </div>
+    </div>
+    <div class="card stat-card">
+        <i class="bi bi-chat-dots stat-icon"></i>
+        <div>
+            <span class="stat-label">Consultas realizadas</span>
+            <div class="stat-value">{{ stats.total_queries }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- QUICK ACCESS -->
+<h5 style="margin-bottom: 0.85rem; font-size: 0.9rem; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.05em;">Accesos rápidos</h5>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem;">
+    <a href="{{ url_for('consultar') }}" style="text-decoration: none;">
+        <div class="card" style="text-align: center; padding: 1.5rem 1rem; transition: box-shadow 0.15s;"
+             onmouseover="this.style.boxShadow='0 4px 16px rgba(29,78,216,0.12)'"
+             onmouseout="this.style.boxShadow=''">
+            <i class="bi bi-search" style="font-size: 1.75rem; color: #1d4ed8; display: block; margin-bottom: 0.5rem;"></i>
+            <div style="font-weight: 600; font-size: 0.9rem; color: #111827;">Hacer consulta</div>
+            <div style="font-size: 0.78rem; color: #6b7280; margin-top: 0.2rem;">Consulta documentos con IA</div>
+        </div>
+    </a>
+    <a href="{{ url_for('documentos') }}" style="text-decoration: none;">
+        <div class="card" style="text-align: center; padding: 1.5rem 1rem; transition: box-shadow 0.15s;"
+             onmouseover="this.style.boxShadow='0 4px 16px rgba(29,78,216,0.12)'"
+             onmouseout="this.style.boxShadow=''">
+            <i class="bi bi-upload" style="font-size: 1.75rem; color: #1d4ed8; display: block; margin-bottom: 0.5rem;"></i>
+            <div style="font-weight: 600; font-size: 0.9rem; color: #111827;">Subir documento</div>
+            <div style="font-size: 0.78rem; color: #6b7280; margin-top: 0.2rem;">Agregar documento al repositorio</div>
+        </div>
+    </a>
+    <a href="{{ url_for('historial') }}" style="text-decoration: none;">
+        <div class="card" style="text-align: center; padding: 1.5rem 1rem; transition: box-shadow 0.15s;"
+             onmouseover="this.style.boxShadow='0 4px 16px rgba(29,78,216,0.12)'"
+             onmouseout="this.style.boxShadow=''">
+            <i class="bi bi-clock-history" style="font-size: 1.75rem; color: #1d4ed8; display: block; margin-bottom: 0.5rem;"></i>
+            <div style="font-weight: 600; font-size: 0.9rem; color: #111827;">Ver historial</div>
+            <div style="font-size: 0.78rem; color: #6b7280; margin-top: 0.2rem;">Consultas anteriores</div>
+        </div>
+    </a>
+</div>
+
+{% endblock %}

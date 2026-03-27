@@ -62,75 +62,6 @@ class RagService:
             last_indexed_at=datetime.now() if has_chunks else None
         )
 
-    def sync_repository_to_index(self):
-        """
-        Sincronización Global de arranque con Reconciliación de Integridad Física.
-        """
-        if not self.persistence: return
-
-        print("\n[INFO] Iniciando auditoría y sincronización global del repositorio...")
-        all_docs = self.persistence.get_all_documents()
-        
-        if not all_docs:
-            print("[INFO] No hay documentos registrados.")
-            return
-
-        self.retrieval_service.clear_all_chunks()
-        indexed_count = 0
-        reconciled_count = 0
-        repaired_count = 0
-        failed_count = 0
-        processed_dir = Path("data/processed")
-
-        for doc in all_docs:
-            doc_id = doc["id"]
-            filename = doc["filename"]
-            stored_path = doc["processed_path"]
-            status = doc["processing_status"]
-
-            file_exists = stored_path and os.path.exists(stored_path)
-            
-            if not file_exists and processed_dir.exists():
-                possible_matches = list(processed_dir.glob(f"*_{filename}*"))
-                valid_matches = [m for m in possible_matches if m.is_file() and m.stat().st_size > 0]
-                
-                if len(valid_matches) == 1:
-                    repaired_path = str(valid_matches[0].resolve())
-                    print(f"[FIX] Reparando ruta para Documento {doc_id} ({filename}).")
-                    self.persistence.update_document_status(doc_id, processed_path=repaired_path, processing_status='completed')
-                    stored_path = repaired_path
-                    file_exists = True
-                    repaired_count += 1
-
-            file_has_content = False
-            if file_exists:
-                file_has_content = os.path.getsize(stored_path) > 0
-
-            if status != 'completed' and file_exists and file_has_content:
-                print(f"[FIX] Reconciliando: Documento {doc_id} ({filename}) ahora es 'completed'.")
-                self.persistence.update_document_status(doc_id, processing_status='completed')
-                status = 'completed'
-                reconciled_count += 1
-            elif not file_exists or not file_has_content:
-                error_msg = f"Archivo procesado no encontrado o vacío en: {stored_path}"
-                print(f"[ERROR] Error físico: Documento {doc_id} ({filename}) marcado como 'failed'.")
-                self.persistence.update_document_status(doc_id, processing_status='failed', is_indexed=False, chunk_count=0, last_indexed_at=None, error_log=error_msg)
-                failed_count += 1
-                continue 
-
-            if status == 'completed':
-                try:
-                    self.index_document(doc_id, stored_path)
-                    indexed_count += 1
-                except Exception as e:
-                    print(f"[ERROR] Error indexando doc {doc_id}: {e}")
-        
-        print(f"[OK] Auditoría y Sincronización completada.")
-        print(f"   - Documentos indexados: {indexed_count}")
-        print(f"   - Rutas reparadas: {repaired_count}")
-        print(f"   - Estados reconciliados: {reconciled_count}")
-        print(f"   - Fallos físicos: {failed_count}\n")
-
     def reindex_document(self, doc_id: int):
         if not self.persistence: return
         doc = self.persistence.get_document_by_id(doc_id)
@@ -139,7 +70,7 @@ class RagService:
 
     def delete_document(self, doc_id: int) -> bool:
         """
-        Elimina por completo un documento: Vector Store, Archivos y Base de Datos.
+        Elimina por completo un documento: Vector Store (PostgreSQL), Archivos y Base de Datos.
         """
         # 1. Eliminar Chunks del Vector Store
         self.retrieval_service.remove_document_chunks(doc_id)
@@ -194,15 +125,63 @@ class RagService:
         return {"filter_id": None, "boost_id": None, "doc_name": None}
 
     def _is_metadata_query(self, question: str) -> bool:
-        q = question.lower()
-        patterns = [
-            r"cuántos.*(documentos|archivos|docs)",
-            r"(lista|listame|dime).*documentos",
-            r"(qué|cuáles).*archivos",
-            r"estado.*repositorio",
-            r"documentos.*(cargados|indexados|fallidos)"
+        """
+        Dos niveles de detección:
+        Nivel 1: Reglas rápidas para casos obvios (sin llamar a Ollama)
+        Nivel 2: Ollama para casos ambiguos
+        """
+        q = self._normalize_text(question)
+        
+        # Nivel 1A: Es CLARAMENTE metadata (palabras clave directas)
+        metadata_obvio = [
+            r"^cuantos\s+(documentos|archivos|docs|papeles)",
+            r"^(lista|listame|muestra|dime)\s+(los\s+)?(documentos|archivos)",
+            r"^que\s+(documentos|archivos)\s+(hay|tienes|existen)",
+            r"^(hay|tienes)\s+\w+\s+(documentos|archivos)",
+            r"estado\s+del?\s+repositorio",
         ]
-        return any(re.search(p, q) for p in patterns)
+        for p in metadata_obvio:
+            if re.search(p, q):
+                print(f"[ROUTER] METADATA por regla rápida: '{question}'")
+                return True
+        
+        # Nivel 1B: Es CLARAMENTE contenido (menciona archivo + pide info)
+        contenido_obvio = [
+            r"(hablame|habla|cuentame|explica|resume|describe|analiza)",
+            r"(que\s+dice|que\s+contiene|que\s+hay\s+en|que\s+trata)",
+            r"(informacion\s+sobre|contenido\s+de|resumen\s+de)",
+            r"(segun\s+el|de\s+acuerdo\s+al|basado\s+en)",
+        ]
+        for p in contenido_obvio:
+            if re.search(p, q):
+                print(f"[ROUTER] CONTENIDO por regla rápida: '{question}'")
+                return False
+        
+        # Nivel 2: Ollama para casos ambiguos
+        prompt = f"""Clasifica esta pregunta. Responde SOLO con una palabra.
+
+METADATA = el usuario pregunta cuántos archivos hay o quiere ver la lista.
+CONTENIDO = el usuario quiere leer o saber qué dice algún documento.
+
+Si hay duda, responde CONTENIDO.
+
+Pregunta: "{question}"
+
+Responde: METADATA o CONTENIDO"""
+
+        try:
+            url = f"{self.base_url}/api/generate"
+            payload = {"model": self.chat_model, "prompt": prompt, "stream": False}
+            response = requests.post(url, json=payload, timeout=10)
+            response.raise_for_status()
+            result = response.json().get("response", "CONTENIDO").strip().upper()
+            # Tomar solo la primera palabra para evitar respuestas largas
+            first_word = result.split()[0] if result.split() else "CONTENIDO"
+            print(f"[ROUTER] Ollama clasificó '{first_word}': '{question}'")
+            return first_word == "METADATA"
+        except Exception as e:
+            print(f"[ROUTER] Fallback CONTENIDO por error: {e}")
+            return False
 
     def _handle_metadata_query(self) -> Dict:
         if not self.persistence:
@@ -223,13 +202,12 @@ class RagService:
             answer += f"- {d['filename']} ({status_label})\n"
         return {"answer": answer, "sources": []}
 
-    def generate_response(self, question: str, top_k: int = 3, document_id: str = None) -> Dict:
+    def generate_response(self, question: str, top_k: int = 6, document_id: str = None, chat_history: list = None) -> Dict:
         if self._is_metadata_query(question):
             print(f"[INFO] Enrutando consulta de metadata: '{question}'")
             return self._handle_metadata_query()
 
         # --- DETECCIÓN DE CONTEXTO AUTOMÁTICO ---
-        # Si no hay un filtro manual, intentamos detectar uno automático
         auto_ctx = self._detect_document_context(question)
         
         final_filter_id = document_id or auto_ctx["filter_id"]
@@ -250,9 +228,8 @@ class RagService:
         )
 
         # --- FILTRO DE CALIDAD ---
-        # Solo consideramos fuentes con una similitud mínima aceptable (ej. 0.35)
-        # Esto evita pasar "ruido" al modelo que lo confunda.
-        valid_results = [res for res in retrieval_results if res['score'] > 0.35]
+        # El filtro de score > 0.35 ahora se maneja dentro del retrieval_service (SQL)
+        valid_results = retrieval_results
         
         if not valid_results:
             return {
@@ -265,7 +242,20 @@ class RagService:
         context_parts = [res['text'] for res in valid_results]
         context_text = "\n\n".join(context_parts)
         
-        # 3. Construcción del Prompt Instruccional para Qwen (Más analítico, menos punitivo)
+        # 2.5 Formateo del Historial (Memoria)
+        historial_texto = ""
+        if chat_history:
+            turnos = []
+            for turno in chat_history[-3:]:  # últimos 3 turnos
+                turnos.append(f"Usuario: {turno['pregunta']}")
+                turnos.append(f"Asistente: {turno['respuesta'][:300]}...")
+            historial_texto = "\n".join(turnos)
+
+        # 3. Construcción del Prompt Instruccional para Qwen
+        seccion_historial = ""
+        if historial_texto:
+            seccion_historial = f"---\nCONVERSACIÓN PREVIA (para mantener coherencia):\n{historial_texto}\n"
+
         prompt = f"""Eres un asistente analítico experto del repositorio documental de la EPIIS.
 Tu objetivo es proporcionar una respuesta útil y precisa basada UNICAMENTE en el CONTEXTO proporcionado.
 
@@ -280,7 +270,7 @@ DIRECTRICES DE RESPUESTA:
 CONTEXTO DE LOS DOCUMENTOS:
 {context_text}
 ---
-
+{seccion_historial}
 PREGUNTA DEL USUARIO: {question}
 RESPUESTA DEL ASISTENTE:"""
 
@@ -300,7 +290,7 @@ RESPUESTA DEL ASISTENTE:"""
              query_id = self.persistence.register_query(user_id, question)
              self.persistence.register_response(query_id, final_answer, self.chat_model)
 
-        # 6. Estructurar fuentes para la UI (usamos los valid_results filtrados)
+        # 6. Estructurar fuentes para la UI
         sources = [
             {
                 "document_id": item["document_id"],

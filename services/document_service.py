@@ -7,6 +7,13 @@ from pathlib import Path
 from pypdf import PdfReader
 import docx
 
+try:
+    import pytesseract
+    from pdf2image import convert_from_path
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
+
 class DocumentService:
     def __init__(self, upload_dir="data/uploads", processed_dir="data/processed", persistence_service=None):
         self.upload_dir = Path(upload_dir)
@@ -49,6 +56,10 @@ class DocumentService:
                 return '.docx'
             elif mime_type == 'text/plain':
                 return '.txt'
+            elif mime_type in ('image/jpeg', 'image/jpg'):
+                return '.jpg'
+            elif mime_type == 'image/png':
+                return '.png'
         return ext
 
     def extract_text(self, file_path: str | Path) -> str:
@@ -64,6 +75,8 @@ class DocumentService:
             return self._extract_from_pdf(path_str)
         elif ext == '.docx':
             return self._extract_from_docx(path_str)
+        elif ext in ('.jpg', '.jpeg', '.png'):
+            return self._extract_from_image(path_str)
         else:
             raise ValueError(f"Formato de archivo no soportado: {ext}")
 
@@ -72,17 +85,83 @@ class DocumentService:
             return f.read()
 
     def _extract_from_pdf(self, file_path: str) -> str:
+        """
+        Extracción en dos fases:
+        Fase 1: pypdf para PDFs con texto embebido (rápido)
+        Fase 2: OCR con Tesseract si el texto extraído es insuficiente
+        """
         text_content = []
         reader = PdfReader(file_path)
         for page in reader.pages:
             page_text = page.extract_text()
             if page_text:
                 text_content.append(page_text)
-        return "\n".join(text_content)
+        
+        extracted = "\n".join(text_content).strip()
+        
+        # Si hay texto suficiente, retornar directo
+        if len(extracted) > 100:
+            return extracted
+        
+        # Fase 2: activar OCR
+        if not OCR_AVAILABLE:
+            print(f"[WARN] PDF sin texto y OCR no disponible: {file_path}")
+            return extracted
+        
+        print(f"[OCR] PDF sin texto embebido, activando Tesseract: {file_path}")
+        try:
+            pages = convert_from_path(file_path, dpi=300)
+            ocr_text = []
+            for i, page_img in enumerate(pages):
+                text = pytesseract.image_to_string(
+                    page_img,
+                    lang="spa+eng",
+                    config="--psm 1"
+                )
+                if text.strip():
+                    ocr_text.append(text)
+                print(f"[OCR] Página {i+1}/{len(pages)} procesada")
+            
+            result = "\n".join(ocr_text).strip()
+            if result:
+                print(f"[OCR] Extracción exitosa: {len(result)} caracteres")
+            else:
+                print(f"[OCR] Sin texto detectado después de OCR")
+            return result
+            
+        except Exception as e:
+            print(f"[OCR] Error en Tesseract: {e}")
+            return extracted
 
     def _extract_from_docx(self, file_path: str) -> str:
         doc = docx.Document(file_path)
         return "\n".join([para.text for para in doc.paragraphs])
+
+    def _extract_from_image(self, file_path: str) -> str:
+        """
+        Extrae texto de una imagen JPG o PNG usando Tesseract OCR.
+        """
+        if not OCR_AVAILABLE:
+            raise ValueError(
+                "OCR no disponible. Instala pytesseract y Pillow."
+            )
+        try:
+            from PIL import Image
+            print(f"[OCR] Procesando imagen: {file_path}")
+            img = Image.open(file_path)
+            text = pytesseract.image_to_string(
+                img,
+                lang="spa+eng",
+                config="--psm 1"
+            )
+            result = text.strip()
+            if result:
+                print(f"[OCR] Imagen procesada: {len(result)} caracteres")
+            else:
+                print(f"[OCR] Sin texto detectado en imagen")
+            return result
+        except Exception as e:
+            raise ValueError(f"Error procesando imagen con OCR: {e}")
 
     def process_and_save(self, file_path: str | Path) -> tuple[Path, Path, int]:
         """

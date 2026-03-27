@@ -8,12 +8,6 @@
 
 <!-- HEADER CON ACCIONES -->
 <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
-    <form action="{{ url_for('sync_all') }}" method="POST">
-        <button type="submit" class="btn-sync" 
-            style="background: #fff; color: #1d4ed8; border: 1.5px solid #1d4ed8; border-radius: 7px; padding: 0.5rem 1rem; font-size: 0.82rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.15s;">
-            <i class="bi bi-arrow-repeat"></i> Sincronizar Repositorio
-        </button>
-    </form>
 </div>
 
 <!-- UPLOAD CARD -->
@@ -21,13 +15,13 @@
     <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 0.4rem;">
         <i class="bi bi-upload" style="color: #1d4ed8;"></i> Subir nuevo documento
     </h5>
-    <form action="{{ url_for('upload_document') }}" method="POST" enctype="multipart/form-data">
+    <form action="{{ url_for('upload_document') }}" method="POST" enctype="multipart/form-data" onsubmit="document.getElementById('upload-loader').style.display='block';">
         <div style="border: 2px dashed #d1d5db; border-radius: 8px; padding: 1.5rem; text-align: center; margin-bottom: 1rem; background: #f9fafb; cursor: pointer;">
             <i class="bi bi-cloud-arrow-up" style="font-size: 1.75rem; color: #9ca3af; display: block; margin-bottom: 0.5rem;"></i>
             <p style="margin: 0; font-size: 0.85rem; font-weight: 600; color: #374151;">Selecciona o arrastra un archivo</p>
             <small style="color: #9ca3af; font-size: 0.75rem;">PDF, DOCX o TXT</small>
             <div style="margin-top: 0.75rem;">
-                <input type="file" id="file" name="file" accept=".txt,.pdf,.docx" required style="font-size: 0.75rem;">
+                <input type="file" id="file" name="file" accept=".pdf,.docx,.txt,.jpg,.jpeg,.png" required style="font-size: 0.75rem;">
             </div>
         </div>
         <button type="submit"

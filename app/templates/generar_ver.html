@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }}{% endblock %}
+{% block page_title %}{{ doc.title }}{% endblock %}
+{% block page_subtitle %}Documento generado por IA · {{ doc.generation_mode.replace('_', ' ').title() }}{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+  <div style="font-size: 0.85rem; color: var(--color-text-muted);">
+    <i class="bi bi-calendar3"></i> {{ doc.created_at.strftime('%d/%m/%Y %H:%M') if doc.created_at else '' }} &nbsp;·&nbsp;
+    <i class="bi bi-file-text"></i> {{ doc.word_count }} palabras &nbsp;·&nbsp;
+    <i class="bi bi-tag"></i> {{ doc.format }}
+  </div>
+  <div style="display: flex; gap: 0.75rem;">
+    <a href="{{ url_for('generar_descargar', gen_id=doc.id, fmt='md') }}"
+       style="padding: 0.6rem 1rem; background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-weight: 600; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
+      <i class="bi bi-markdown"></i> .md
+    </a>
+    <a href="{{ url_for('generar_descargar', gen_id=doc.id, fmt='docx') }}"
+       style="padding: 0.6rem 1rem; background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-weight: 600; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
+      <i class="bi bi-file-word"></i> .docx
+    </a>
+    <a href="{{ url_for('generar_descargar', gen_id=doc.id, fmt='pdf') }}"
+       style="padding: 0.6rem 1.25rem; background: var(--color-primary); color: white; border-radius: var(--radius-md); font-weight: 600; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
+      <i class="bi bi-file-pdf"></i> .pdf
+    </a>
+    <a href="{{ url_for('generar') }}"
+       style="padding: 0.6rem 1.25rem; background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-weight: 600; font-size: 0.9rem; text-decoration: none;">
+      ← Volver
+    </a>
+  </div>
+</div>
+
+<!-- PROMPT USADO -->
+<div style="background: var(--color-primary-light); border: 1px solid var(--color-primary-border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
+  <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-primary); text-transform: uppercase; margin-bottom: 0.4rem;">Instrucciones usadas</div>
+  <div style="font-size: 0.9rem; color: var(--color-text-main);">{{ doc.prompt }}</div>
+</div>
+
+<!-- CONTENIDO GENERADO -->
+<div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 2rem;">
+  <pre style="white-space: pre-wrap; font-family: inherit; font-size: 0.95rem; line-height: 1.7; color: var(--color-text-main); margin: 0;">{{ doc.content }}</pre>
+</div>
+{% endblock %}

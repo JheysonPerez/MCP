@@ -11,6 +11,7 @@ from services.chunk_service import ChunkService
 from services.embedding_service import EmbeddingService
 from services.retrieval_service import RetrievalService
 from services.rag_service import RagService
+from services.generation_service import GenerationService
 
 load_dotenv()
 
@@ -36,6 +37,11 @@ def create_app():
         persistence_service=persistence
     )
 
+    generation_service = GenerationService(
+        retrieval_service=retrieval_service,
+        persistence_service=persistence
+    )
+
     # Inyección de dependencias en el contexto global de app para poder consumirlos en app/routes.py
     app.db_conn = db_conn
     app.persistence = persistence
@@ -43,13 +49,7 @@ def create_app():
     app.chunk_service = chunk_service
     app.retrieval_service = retrieval_service
     app.rag_service = rag_service
-    
-    # Sincronización Global del Repositorio al arrancar (Elimina la "amnesia")
-    with app.app_context():
-        try:
-            app.rag_service.sync_repository_to_index()
-        except Exception as e:
-            print(f"[WARN] Error en la sincronización inicial: {e}")
+    app.generation_service = generation_service
 
     # Registrar Rutas
     with app.app_context():

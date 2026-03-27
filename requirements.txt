@@ -6,3 +6,11 @@ psycopg2-binary>=2.9.9
 mcp>=1.0.0
 flask>=3.0.0
 werkzeug>=3.0.0
+pgvector
+pytesseract
+pdf2image
+Pillow
+fpdf2
+ollama
+pgvector
+psycopg2-binary>=2.9.9

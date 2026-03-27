@@ -13,4 +13,4 @@ if __name__ == "__main__":
     print("Accede a la interfaz desde tu navegador: http://127.0.0.1:5000\n")
     
     # Arrancamos con debug=True para desarrollo ágil y recarga en vivo de plantillas HTML
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5008, debug=True)

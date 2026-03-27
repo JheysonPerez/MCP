@@ -52,3 +52,25 @@ CREATE TABLE IF NOT EXISTS generated_documents (
     format VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Tabla para generación documental por IA
+CREATE TABLE IF NOT EXISTS generated_documents_v2 (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    title VARCHAR(500) NOT NULL,
+    prompt TEXT NOT NULL,
+    content TEXT NOT NULL,
+    format VARCHAR(20) DEFAULT 'markdown',
+    generation_mode VARCHAR(50) DEFAULT 'prompt_libre',
+    source_doc_ids INTEGER[],
+    model_used VARCHAR(100),
+    word_count INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_format 
+        CHECK (format IN ('txt', 'markdown', 'pdf', 'docx')),
+    CONSTRAINT check_mode
+        CHECK (generation_mode IN ('prompt_libre', 'basado_repositorio', 'basado_documento'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_gendocs_user ON generated_documents_v2(user_id);
+CREATE INDEX IF NOT EXISTS idx_gendocs_mode ON generated_documents_v2(generation_mode);

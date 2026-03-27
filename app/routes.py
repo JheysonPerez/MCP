@@ -5,7 +5,7 @@ from werkzeug.security import check_password_hash
 from pathlib import Path
 import os
 
-ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt'}
+ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt', 'jpg', 'jpeg', 'png'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -151,19 +151,6 @@ def delete_document(doc_id):
         
     return redirect(url_for("documentos"))
 
-@app.route("/documentos/sync", methods=["POST"])
-def sync_all():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-    
-    try:
-        app.rag_service.sync_repository_to_index()
-        flash("Repositorio sincronizado con éxito.", "success")
-    except Exception as e:
-        flash(f"Error en sincronización: {str(e)}", "error")
-        
-    return redirect(url_for("documentos"))
-
 
 # --- CONSULTA RAG ---
 
@@ -200,6 +187,8 @@ def consultar():
         documentos_lista = []
 
     # 3. Manejar la consulta (POST)
+    chat_history = session.get("chat_history", [])
+    
     if request.method == "POST":
         pregunta = request.form.get("pregunta", "").strip()
         scope = request.form.get("scope", "all")
@@ -212,25 +201,48 @@ def consultar():
             filtro_doc = doc_seleccionado if (scope == "doc" and doc_seleccionado) else None
 
             try:
+                # Cambiado top_k=6 para coincidir con RagService persistente
                 resultado = app.rag_service.generate_response(
-                    pregunta, top_k=3, document_id=filtro_doc
+                    pregunta, top_k=6, document_id=filtro_doc,
+                    chat_history=chat_history
                 )
                 respuesta_rag = resultado["answer"].strip()
                 fuentes = resultado["sources"]
                 pregunta_hecha = pregunta
+
+                # Actualizar historial en sesión para la PRÓXIMA consulta
+                # (No agregamos el turno actual al chat_history que enviamos al template)
+                chat_history.append({
+                    "pregunta": pregunta,
+                    "respuesta": respuesta_rag
+                })
+                session["chat_history"] = chat_history[-5:]
+                session.modified = True
+
             except Exception as e:
                 flash(f"Error al consultar el sistema RAG: {str(e)}", "error")
 
+    # Turno actual para mostrar por separado del historial
+    turno_actual = {
+        "pregunta": pregunta_hecha, 
+        "respuesta": respuesta_rag, 
+        "fuentes": fuentes
+    } if pregunta_hecha else None
+
     return render_template(
         "consultar.html",
-        respuesta_rag=respuesta_rag,
-        pregunta_hecha=pregunta_hecha,
-        fuentes=fuentes,
+        turno_actual=turno_actual,
         scope=scope,
         doc_seleccionado=doc_seleccionado,
         documentos_lista=documentos_lista,
+        chat_history=chat_history[:-1] if turno_actual else chat_history, # Evitar mostrar el último si ya está en turno_actual
         username=session.get("username")
     )
+
+@app.route("/consultar/limpiar", methods=["POST"])
+def limpiar_historial():
+    session.pop("chat_history", None)
+    return redirect(url_for("consultar"))
 
 
 
@@ -254,3 +266,128 @@ def historial():
         rows = []
     
     return render_template("historial.html", historial=rows, username=session.get("username"))
+
+# --- GENERACIÓN DOCUMENTAL ---
+
+@app.route("/generar", methods=["GET"])
+def generar():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    
+    documentos_lista = app.db_conn.execute_query(
+        "SELECT id, filename FROM documents WHERE is_indexed = TRUE ORDER BY filename;",
+        fetch=True
+    ) or []
+    
+    generados = app.generation_service.get_all()
+    
+    return render_template("generar.html",
+        documentos_lista=documentos_lista,
+        generados=generados,
+        username=session.get("username")
+    )
+
+@app.route("/generar/crear", methods=["POST"])
+def generar_crear():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    
+    prompt = request.form.get("prompt", "").strip()
+    mode = request.form.get("mode", "prompt_libre")
+    doc_format = request.form.get("formato", "markdown")
+    source_doc_id = request.form.get("source_doc_id", "").strip()
+    
+    if not prompt:
+        flash("Debes ingresar instrucciones para generar el documento.", "error")
+        return redirect(url_for("generar"))
+    
+    source_doc_ids = [int(source_doc_id)] if source_doc_id else []
+    
+    try:
+        resultado = app.generation_service.generate(
+            prompt=prompt,
+            mode=mode,
+            source_doc_ids=source_doc_ids,
+            doc_format=doc_format,
+            user_id=session.get("user_id")
+        )
+        
+        if resultado["success"]:
+            flash(f"Documento generado: {resultado['title']}", "success")
+            return redirect(url_for("generar_ver", gen_id=resultado["id"]))
+        else:
+            flash(f"Error al generar: {resultado['error']}", "error")
+    except Exception as e:
+        flash(f"Error inesperado: {str(e)}", "error")
+    
+    return redirect(url_for("generar"))
+
+@app.route("/generar/ver/<int:gen_id>", methods=["GET"])
+def generar_ver(gen_id):
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    
+    doc = app.generation_service.get_by_id(gen_id)
+    if not doc:
+        flash("Documento no encontrado.", "error")
+        return redirect(url_for("generar"))
+    
+    return render_template("generar_ver.html", doc=doc,
+        username=session.get("username"))
+
+@app.route("/generar/descargar/<int:gen_id>")
+def generar_descargar(gen_id):
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    from flask import Response
+    fmt = request.args.get("fmt", "md")
+    doc = app.generation_service.get_by_id(gen_id)
+    if not doc:
+        flash("Documento no encontrado.", "error")
+        return redirect(url_for("generar"))
+
+    safe_title = doc['title'][:50].replace(' ', '_').replace('/', '_')
+
+    if fmt == "docx":
+        try:
+            content = app.generation_service.export_docx(gen_id)
+            return Response(
+                content,
+                mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={"Content-Disposition": 
+                         f"attachment; filename={safe_title}.docx"}
+            )
+        except Exception as e:
+            flash(f"Error al exportar DOCX: {str(e)}", "error")
+            return redirect(url_for("generar_ver", gen_id=gen_id))
+
+    elif fmt == "pdf":
+        try:
+            content = app.generation_service.export_pdf(gen_id)
+            return Response(
+                content,
+                mimetype="application/pdf",
+                headers={"Content-Disposition": 
+                         f"attachment; filename={safe_title}.pdf"}
+            )
+        except Exception as e:
+            flash(f"Error al exportar PDF: {str(e)}", "error")
+            return redirect(url_for("generar_ver", gen_id=gen_id))
+
+    else:
+        return Response(
+            doc["content"],
+            mimetype="text/markdown",
+            headers={"Content-Disposition": 
+                     f"attachment; filename={safe_title}.md"}
+        )
+
+@app.route("/generar/eliminar/<int:gen_id>", methods=["POST"])
+def generar_eliminar(gen_id):
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    
+    app.generation_service.delete(gen_id)
+    flash("Documento eliminado.", "info")
+    return redirect(url_for("generar"))

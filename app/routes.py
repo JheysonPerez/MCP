@@ -1,9 +1,11 @@
 from flask import current_app as app
-from flask import render_template, request, redirect, url_for, session, flash
+from flask import render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash
 from pathlib import Path
 import os
+
+from .decorators import login_required, admin_required
 
 ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt', 'jpg', 'jpeg', 'png'}
 
@@ -25,15 +27,13 @@ def login():
         password = request.form.get("password", "").strip()
         
         try:
-            # Buscar usuario real con hash en la base de datos
-            result = app.db_conn.execute_query(
-                "SELECT id, username, password_hash FROM users WHERE username = %s LIMIT 1;",
-                (username,), fetch=True
-            )
+            # Usar UserService para autenticar
+            user = app.user_service.authenticate(username, password)
             
-            if result and result[0].get("password_hash") and check_password_hash(result[0]["password_hash"], password):
-                session["user_id"] = result[0]["id"]
-                session["username"] = result[0]["username"]
+            if user:
+                session["user_id"] = user["id"]
+                session["username"] = user["username"]
+                session["user_role"] = user["role"]
                 flash("Bienvenido al sistema.", "success")
                 return redirect(url_for("dashboard"))
             else:
@@ -52,12 +52,10 @@ def logout():
 # --- DASHBOARD PRINCIPAL ---
 
 @app.route("/dashboard", methods=["GET"])
+@login_required
 def dashboard():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-    
     stats = _get_stats()
-    return render_template("dashboard.html", stats=stats, username=session.get("username"))
+    return render_template("dashboard.html", stats=stats, username=session.get("username"), user_role=session.get("user_role"))
 
 def _get_stats():
     try:
@@ -73,22 +71,19 @@ def _get_stats():
 # --- GESTIÓN DE DOCUMENTOS ---
 
 @app.route("/documentos", methods=["GET"])
+@admin_required
 def documentos():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-    
     docs = app.db_conn.execute_query("""
         SELECT id, filename, created_at, processing_status, is_indexed, chunk_count 
         FROM documents 
         ORDER BY created_at DESC;
     """, fetch=True)
-    return render_template("documentos.html", documentos=docs, username=session.get("username"))
+    return render_template("documentos.html", documentos=docs, username=session.get("username"), user_role=session.get("user_role"))
 
 
 @app.route("/upload", methods=["POST"])
+@admin_required
 def upload_document():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
     
     if 'file' not in request.files:
         flash("No se seleccionó ningún archivo.", "error")
@@ -126,9 +121,8 @@ def upload_document():
     return redirect(url_for("documentos"))
 
 @app.route("/documentos/reindex/<int:doc_id>", methods=["POST"])
+@admin_required
 def reindex_document(doc_id):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
     
     try:
         app.rag_service.reindex_document(doc_id)
@@ -139,9 +133,8 @@ def reindex_document(doc_id):
     return redirect(url_for("documentos"))
 
 @app.route("/documentos/delete/<int:doc_id>", methods=["POST"])
+@admin_required
 def delete_document(doc_id):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
     
     try:
         app.rag_service.delete_document(doc_id)
@@ -155,9 +148,8 @@ def delete_document(doc_id):
 # --- CONSULTA RAG ---
 
 @app.route("/consultar", methods=["GET", "POST"])
+@login_required
 def consultar():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     respuesta_rag = None
     pregunta_hecha = None
@@ -249,9 +241,8 @@ def limpiar_historial():
 # --- HISTORIAL ---
 
 @app.route("/historial", methods=["GET"])
+@login_required
 def historial():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
     
     try:
         rows = app.db_conn.execute_query("""
@@ -270,9 +261,8 @@ def historial():
 # --- GENERACIÓN DOCUMENTAL ---
 
 @app.route("/generar", methods=["GET"])
+@login_required
 def generar():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
     
     documentos_lista = app.db_conn.execute_query(
         "SELECT id, filename FROM documents WHERE is_indexed = TRUE ORDER BY filename;",
@@ -288,9 +278,8 @@ def generar():
     )
 
 @app.route("/generar/crear", methods=["POST"])
+@login_required
 def generar_crear():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
     
     prompt = request.form.get("prompt", "").strip()
     mode = request.form.get("mode", "prompt_libre")
@@ -323,9 +312,8 @@ def generar_crear():
     return redirect(url_for("generar"))
 
 @app.route("/generar/ver/<int:gen_id>", methods=["GET"])
+@login_required
 def generar_ver(gen_id):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
     
     doc = app.generation_service.get_by_id(gen_id)
     if not doc:
@@ -336,9 +324,8 @@ def generar_ver(gen_id):
         username=session.get("username"))
 
 @app.route("/generar/descargar/<int:gen_id>")
+@login_required
 def generar_descargar(gen_id):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     from flask import Response
     fmt = request.args.get("fmt", "md")
@@ -384,10 +371,132 @@ def generar_descargar(gen_id):
         )
 
 @app.route("/generar/eliminar/<int:gen_id>", methods=["POST"])
+@login_required
 def generar_eliminar(gen_id):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
     
     app.generation_service.delete(gen_id)
     flash("Documento eliminado.", "info")
     return redirect(url_for("generar"))
+
+
+# --- ADMIN: GESTIÓN DE USUARIOS ---
+
+@app.route("/admin/usuarios", methods=["GET"])
+@admin_required
+def admin_usuarios():
+    """Página de administración de usuarios."""
+    users = app.user_service.list_users(include_inactive=True)
+    return render_template("admin/usuarios.html", 
+                          users=users, 
+                          username=session.get("username"),
+                          user_role=session.get("user_role"))
+
+
+@app.route("/api/usuarios", methods=["GET"])
+@admin_required
+def api_list_users():
+    """API: Listar todos los usuarios."""
+    include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
+    users = app.user_service.list_users(include_inactive=include_inactive)
+    return jsonify({'success': True, 'users': users})
+
+
+@app.route("/api/usuarios", methods=["POST"])
+@admin_required
+def api_create_user():
+    """API: Crear nuevo usuario."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'error': 'No se recibieron datos'}), 400
+    
+    username = data.get('username', '').strip()
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    role = data.get('role', 'user')
+    is_active = data.get('is_active', True)
+    
+    result = app.user_service.create_user(
+        username=username,
+        email=email,
+        password=password,
+        role=role,
+        is_active=is_active
+    )
+    
+    if result['success']:
+        return jsonify({'success': True, 'user_id': result['user_id']}), 201
+    else:
+        return jsonify({'success': False, 'error': result['error']}), 400
+
+
+@app.route("/api/usuarios/<int:user_id>", methods=["GET"])
+@admin_required
+def api_get_user(user_id):
+    """API: Obtener datos de un usuario."""
+    user = app.user_service.get_user_by_id(user_id)
+    if user:
+        return jsonify({'success': True, 'user': user})
+    else:
+        return jsonify({'success': False, 'error': 'Usuario no encontrado'}), 404
+
+
+@app.route("/api/usuarios/<int:user_id>", methods=["PUT"])
+@admin_required
+def api_update_user(user_id):
+    """API: Actualizar usuario (username, email, role, is_active)."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'error': 'No se recibieron datos'}), 400
+    
+    # No permitir actualizar el propio usuario para evitar bloquearse a sí mismo
+    if user_id == session.get('user_id') and 'role' in data and data['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No puedes quitarte el rol de administrador a ti mismo'}), 403
+    
+    if user_id == session.get('user_id') and 'is_active' in data and not data['is_active']:
+        return jsonify({'success': False, 'error': 'No puedes desactivarte a ti mismo'}), 403
+    
+    result = app.user_service.update_user(user_id, **data)
+    
+    if result['success']:
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'error': result['error']}), 400
+
+
+@app.route("/api/usuarios/<int:user_id>/password", methods=["PUT"])
+@admin_required
+def api_update_password(user_id):
+    """API: Actualizar password de usuario."""
+    data = request.get_json()
+    
+    if not data or 'password' not in data:
+        return jsonify({'success': False, 'error': 'Contraseña requerida'}), 400
+    
+    result = app.user_service.update_password(user_id, data['password'])
+    
+    if result['success']:
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'error': result['error']}), 400
+
+
+@app.route("/api/usuarios/<int:user_id>", methods=["DELETE"])
+@admin_required
+def api_delete_user(user_id):
+    """API: Eliminar/desactivar usuario."""
+    # No permitir eliminarse a sí mismo
+    if user_id == session.get('user_id'):
+        return jsonify({'success': False, 'error': 'No puedes eliminarte a ti mismo'}), 403
+    
+    # Por defecto soft delete (desactivar)
+    hard_delete = request.args.get('hard', 'false').lower() == 'true'
+    
+    result = app.user_service.delete_user(user_id, soft_delete=not hard_delete)
+    
+    if result['success']:
+        return jsonify({'success': True, 'deleted': result.get('deleted', False), 
+                       'deactivated': result.get('deactivated', False)})
+    else:
+        return jsonify({'success': False, 'error': result['error']}), 400

@@ -12,6 +12,7 @@ from services.embedding_service import EmbeddingService
 from services.retrieval_service import RetrievalService
 from services.rag_service import RagService
 from services.generation_service import GenerationService
+from services.user_service import UserService
 
 load_dotenv()
 
@@ -41,6 +42,8 @@ def create_app():
         retrieval_service=retrieval_service,
         persistence_service=persistence
     )
+    
+    user_service = UserService(db_connection=db_conn)
 
     # Inyección de dependencias en el contexto global de app para poder consumirlos en app/routes.py
     app.db_conn = db_conn
@@ -50,6 +53,7 @@ def create_app():
     app.retrieval_service = retrieval_service
     app.rag_service = rag_service
     app.generation_service = generation_service
+    app.user_service = user_service
 
     # Registrar Rutas
     with app.app_context():

@@ -720,6 +720,11 @@
                 <a href="{{ url_for('historial') }}" class="{{ 'active' if request.endpoint == 'historial' else '' }}">
                     <i class="bi bi-clock-history"></i><span>Historial</span>
                 </a>
+                {% if session.get('user_role') == 'admin' %}
+                <a href="{{ url_for('admin_usuarios') }}" class="{{ 'active' if request.endpoint == 'admin_usuarios' else '' }}">
+                    <i class="bi bi-people"></i><span>Usuarios</span>
+                </a>
+                {% endif %}
             </nav>
 
             <div class="sidebar-footer">

@@ -76,7 +76,7 @@ class RetrievalService:
                     SELECT document_id, filename, chunk_index, chunk_text,
                            1 - (embedding <=> %s::vector) AS score
                     FROM document_chunks
-                    WHERE (1 - (embedding <=> %s::vector)) > 0.35
+                    WHERE (1 - (embedding <=> %s::vector)) > 0.20
                 """
                 params = [query_embedding, query_embedding]
 

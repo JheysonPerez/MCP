@@ -713,10 +713,12 @@
                 <a href="{{ url_for('generar') }}" class="{{ 'active' if request.endpoint == 'generar' else '' }}">
                     <i class="bi bi-stars"></i><span>Generar</span>
                 </a>
+                {% if session.get('user_role') == 'admin' %}
                 <a href="{{ url_for('documentos') }}"
                     class="{{ 'active' if request.endpoint == 'documentos' else '' }}">
                     <i class="bi bi-folder2-open"></i><span>Documentos</span>
                 </a>
+                {% endif %}
                 <a href="{{ url_for('historial') }}" class="{{ 'active' if request.endpoint == 'historial' else '' }}">
                     <i class="bi bi-clock-history"></i><span>Historial</span>
                 </a>

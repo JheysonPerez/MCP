@@ -202,7 +202,7 @@ Responde: METADATA o CONTENIDO"""
             answer += f"- {d['filename']} ({status_label})\n"
         return {"answer": answer, "sources": []}
 
-    def generate_response(self, question: str, top_k: int = 6, document_id: str = None, chat_history: list = None) -> Dict:
+    def generate_response(self, question: str, top_k: int = 10, document_id: str = None, chat_history: list = None) -> Dict:
         if self._is_metadata_query(question):
             print(f"[INFO] Enrutando consulta de metadata: '{question}'")
             return self._handle_metadata_query()
@@ -242,6 +242,12 @@ Responde: METADATA o CONTENIDO"""
         context_parts = [res['text'] for res in valid_results]
         context_text = "\n\n".join(context_parts)
         
+        # --- DEBUG: Imprimir lo que se recuperó ---
+        print(f"[DEBUG] Chunks recuperados: {len(valid_results)}")
+        for i, r in enumerate(valid_results[:3]):
+            print(f"[DEBUG] Chunk {i}: score={r.get('score', 0):.3f}, doc_id={r.get('document_id')}, text[:100]={r.get('text', '')[:100]}...")
+        print(f"[DEBUG] Contexto total length: {len(context_text)} chars")
+        
         # 2.5 Formateo del Historial (Memoria)
         historial_texto = ""
         if chat_history:
@@ -256,32 +262,40 @@ Responde: METADATA o CONTENIDO"""
         if historial_texto:
             seccion_historial = f"---\nCONVERSACIÓN PREVIA (para mantener coherencia):\n{historial_texto}\n"
 
-        prompt = f"""Eres un asistente analítico experto del repositorio documental de la EPIIS.
-Tu objetivo es proporcionar una respuesta útil y precisa basada UNICAMENTE en el CONTEXTO proporcionado.
+        # Agregar info del documento detectado si existe
+        doc_context = ""
+        if auto_ctx["doc_name"]:
+            doc_context = f"""\nDOCUMENTO CONSULTADO: {auto_ctx['doc_name']}
+El usuario está preguntando específicamente sobre este documento. Analiza TODO el contenido proporcionado.\n"""
 
-DIRECTRICES DE RESPUESTA:
-1. Analiza el contexto y extrae la información que responda a la pregunta.
-2. Responde de forma clara, directa y en lenguaje natural profesional.
-3. Si la información no está disponible de forma explícita pero hay datos relacionados, menciónalos con cautela.
-4. Si definitivamente el contexto no tiene relación con la pregunta, indica que no cuentas con información específica sobre ese tema en los documentos actuales.
-5. NO menciones términos técnicos internos como 'chunks', 'embeddings' o 'document_id'.
-
----
-CONTEXTO DE LOS DOCUMENTOS:
-{context_text}
----
-{seccion_historial}
-PREGUNTA DEL USUARIO: {question}
-RESPUESTA DEL ASISTENTE:"""
-
-        url = f"{self.base_url}/api/generate"
-        payload = {"model": self.chat_model, "prompt": prompt, "stream": False}
+        # 3. Llamada al LLM con mensajes ultra-directivos
+        system_msg = "Eres un analista documental experto. Tu tarea es EXTRAER Y LISTAR TODA la información relevante del documento: nombres, fechas, números, estados, datos identificativos, cláusulas, resoluciones, cualquier dato específico. NO hagas resúmenes generales ni descripciones vagas. Lista cada dato concreto que encuentres en el texto."
+        
+        # Si la pregunta es vaga sobre "hablame de este doc", convertirla en instrucción específica
+        question_lower = question.lower()
+        if any(word in question_lower for word in ['hablame', 'cuentame', 'dime', 'sobre', 'contenido', 'que dice', 'qué dice']):
+            specific_question = "Extrae y lista todos los datos específicos del documento: nombres completos, fechas, números de documento/identificación, estados, direcciones, cláusulas, resoluciones, y cualquier información identificativa o normativa que figure en el texto."
+        else:
+            specific_question = question
+            
+        user_msg = f"TEXTO DEL DOCUMENTO:\n{context_text}\n\nINSTRUCCIÓN: {specific_question}\n\nResponde listando CADA dato específico que encuentres en el texto anterior. NO hagas descripción general. Extrae información concreta: nombres, fechas, números, estados."
+        
+        url = f"{self.base_url}/api/chat"
+        payload = {
+            "model": self.chat_model,
+            "messages": [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg}
+            ],
+            "stream": False,
+            "options": {"temperature": 0.1, "top_p": 0.3}
+        }
         
         try:
-            response = requests.post(url, json=payload, timeout=90)
+            response = requests.post(url, json=payload, timeout=120)
             response.raise_for_status()
             data = response.json()
-            final_answer = data.get("response", "Error: No se recibió una respuesta válida del motor de IA.")
+            final_answer = data.get("message", {}).get("content", "Error: No se recibió respuesta válida.")
         except Exception as e:
             final_answer = f"(Error de comunicación con el motor de IA: {str(e)})"
             

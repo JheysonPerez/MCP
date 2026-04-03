@@ -193,9 +193,9 @@ def consultar():
             filtro_doc = doc_seleccionado if (scope == "doc" and doc_seleccionado) else None
 
             try:
-                # Cambiado top_k=6 para coincidir con RagService persistente
+                # Aumentado top_k=10 para recuperar más contexto del documento
                 resultado = app.rag_service.generate_response(
-                    pregunta, top_k=6, document_id=filtro_doc,
+                    pregunta, top_k=10, document_id=filtro_doc,
                     chat_history=chat_history
                 )
                 respuesta_rag = resultado["answer"].strip()
@@ -243,20 +243,35 @@ def limpiar_historial():
 @app.route("/historial", methods=["GET"])
 @login_required
 def historial():
+    user_id = session.get("user_id")
+    user_role = session.get("user_role")
     
     try:
-        rows = app.db_conn.execute_query("""
-            SELECT q.query_text, r.response_text, q.created_at, u.username
-            FROM queries q
-            LEFT JOIN responses r ON r.query_id = q.id
-            LEFT JOIN users u ON u.id = q.user_id
-            ORDER BY q.created_at DESC
-            LIMIT 50;
-        """, fetch=True)
+        if user_role == 'admin':
+            # Admin ve historial de todos los usuarios
+            rows = app.db_conn.execute_query("""
+                SELECT q.query_text, r.response_text, q.created_at, u.username
+                FROM queries q
+                LEFT JOIN responses r ON r.query_id = q.id
+                LEFT JOIN users u ON u.id = q.user_id
+                ORDER BY q.created_at DESC
+                LIMIT 50;
+            """, fetch=True)
+        else:
+            # Usuario normal solo ve su propio historial
+            rows = app.db_conn.execute_query("""
+                SELECT q.query_text, r.response_text, q.created_at, u.username
+                FROM queries q
+                LEFT JOIN responses r ON r.query_id = q.id
+                LEFT JOIN users u ON u.id = q.user_id
+                WHERE q.user_id = %s
+                ORDER BY q.created_at DESC
+                LIMIT 50;
+            """, (user_id,), fetch=True)
     except:
         rows = []
     
-    return render_template("historial.html", historial=rows, username=session.get("username"))
+    return render_template("historial.html", historial=rows, username=session.get("username"), user_role=user_role)
 
 # --- GENERACIÓN DOCUMENTAL ---
 

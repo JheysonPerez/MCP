@@ -237,68 +237,73 @@ class RagService:
                 return True
         return False
 
-    def _is_metadata_query(self, question: str) -> bool:
+    def _classify_intent(self, question: str) -> str:
         """
-        Dos niveles de detección:
-        Nivel 1: Reglas rápidas para casos obvios (sin llamar a Ollama)
-        Nivel 2: Ollama para casos ambiguos
+        Clasifica la intención en 4 categorías:
+        'greeting', 'metadata', 'content', 'unknown'
         """
         q = self._normalize_text(question)
         
-        # Nivel 1A: Es CLARAMENTE metadata (palabras clave directas)
-        metadata_obvio = [
-            r"^cuantos\s+(documentos|archivos|docs|papeles)",
-            r"^(lista|listame|muestra|dime)\s+(los\s+)?(documentos|archivos)",
-            r"^que\s+(documentos|archivos)\s+(hay|tienes|existen)",
-            r"^(hay|tienes)\s+\w+\s+(documentos|archivos)",
-            r"estado\s+del?\s+repositorio",
+        # Nivel 1 — Metadata PRIMERO (tiene prioridad sobre saludos)
+        metadata_patterns = [
+            r'\b(qu[eé]|cu[aá]les?|cu[aá]ntos?)\b.{0,25}\b(documentos?|archivos?)\b',
+            r'\b(documentos?|archivos?)\b.{0,20}\b(indexados?|procesados?|disponibles?|listos?)',
+            r'\b(listar?|mostrar?|ver|dame)\b.{0,15}\b(documentos?|archivos?)',
+            r'\brepositorio\b',
+            r'\bqu[eé]\s+(tienes?|hay)\s+(disponible|indexado)',
         ]
-        for p in metadata_obvio:
+        for p in metadata_patterns:
             if re.search(p, q):
-                print(f"[ROUTER] METADATA por regla rápida: '{question}'")
-                return True
+                print(f"[ROUTER] METADATA detectado: '{question}'")
+                return 'metadata'
         
-        # Nivel 1B: Es CLARAMENTE contenido (menciona archivo + pide info)
-        contenido_obvio = [
-            r"(hablame|habla|cuentame|explica|resume|describe|analiza)",
-            r"(que\s+dice|que\s+contiene|que\s+hay\s+en|que\s+trata)",
-            r"(informacion\s+sobre|contenido\s+de|resumen\s+de)",
-            r"(segun\s+el|de\s+acuerdo\s+al|basado\s+en)",
-            # Patrones temporales - evitan que preguntas de fechas vayan a metadata
-            r"(cuando\s+(fue|es|vence|expira|caduca|emite|emitio|emitido|emitida|nace|naciste|otorgaron|otorgada|publicado|publicada|suscrito|suscrita))",
-            r"(fecha\s+(de\s+)?(emision|vencimiento|caducidad|nacimiento|expedicion|expiracion|otorgamiento|suscripcion|publicacion))",
-            r"(vigencia|caducidad|vencimiento|emision|expiracion)\s+del?",
+        # Nivel 2 — Saludos PUROS (sin pregunta de fondo)
+        greeting_patterns = [
+            r'^(hola|buenos|buenas|hey|hi|hello)$',  # ← solo si es SOLO el saludo
+            r'^(gracias|ok|okay|perfecto|entendido|listo|genial|excelente)$',
+            r'^(adios|hasta|chao|bye)$',
         ]
-        for p in contenido_obvio:
+        for p in greeting_patterns:
             if re.search(p, q):
-                print(f"[ROUTER] CONTENIDO por regla rápida: '{question}'")
-                return False
+                print(f"[ROUTER] GREETING detectado: '{question}'")
+                return 'greeting'
         
-        # Nivel 2: Ollama para casos ambiguos
-        prompt = f"""Clasifica esta pregunta. Responde SOLO con una palabra.
-
-METADATA = el usuario pregunta cuántos archivos hay o quiere ver la lista.
-CONTENIDO = el usuario quiere leer o saber qué dice algún documento.
-
-Si hay duda, responde CONTENIDO.
-
-Pregunta: "{question}"
-
-Responde: METADATA o CONTENIDO"""
-
+        # Nivel 3 — Contenido obvio
+        content_patterns = [
+            r'(hablame|cuentame|explica|resume|describe|analiza)',
+            r'(que\s+dice|que\s+contiene|que\s+trata)',
+            r'(cuando\s+(fue|es|vence|expira|caduca|emitido|nace))',
+            r'(fecha\s+(de\s+)?(emision|vencimiento|caducidad|nacimiento))',
+            r'\b(dni|ruc|telefono|celular|correo|domicilio)\b',
+            r'\b(cu[aá]l|qui[eé]n|cu[aá]nto|d[oó]nde)\b',
+        ]
+        for p in content_patterns:
+            if re.search(p, q):
+                return 'content'
+        
+        # Nivel 4 — Ollama para ambiguos
         try:
+            prompt = f"""Clasifica esta pregunta en UNA palabra.
+
+GREETING = saludo o mensaje sin pregunta real
+METADATA = pregunta sobre cuántos archivos hay o lista de documentos
+CONTENT = pregunta sobre el contenido de algún documento
+
+Si hay duda, responde CONTENT.
+Pregunta: "{question}"
+Responde solo: GREETING, METADATA o CONTENT"""
+
             url = f"{self.base_url}/api/generate"
-            payload = {"model": self.chat_model, "prompt": prompt, "stream": False}
-            response = requests.post(url, json=payload, timeout=10)
-            response.raise_for_status()
-            result = response.json().get("response", "CONTENIDO").strip().upper()
-            # Tomar solo la primera palabra para evitar respuestas largas
-            first_word = result.split()[0] if result.split() else "CONTENIDO"
-            print(f"[ROUTER] Ollama clasificó '{first_word}': '{question}'")
-            return first_word == "METADATA"
-        except Exception as e:
-            print(f"[ROUTER] Fallback CONTENIDO por error: {e}")
-            return False
+            response = requests.post(url, json={"model": self.chat_model, "prompt": prompt, "stream": False}, timeout=10)
+            result = response.json().get("response", "CONTENT").strip().upper().split()[0]
+            print(f"[ROUTER] Ollama clasificó '{result}': '{question}'")
+            return result.lower() if result in ['GREETING', 'METADATA', 'CONTENT'] else 'content'
+        except:
+            return 'content'
+
+    def _is_metadata_query(self, question: str) -> bool:
+        """Deprecated: usar _classify_intent() en su lugar."""
+        return self._classify_intent(question) == 'metadata'
 
     def _handle_metadata_query(self) -> Dict:
         if not self.persistence:
@@ -323,10 +328,18 @@ Responde: METADATA o CONTENIDO"""
         # Limpiar pregunta de comillas y puntos extras del frontend
         question = question.strip().strip('"\'.,')
         
-        if self._is_metadata_query(question):
-            print(f"[INFO] Enrutando consulta de metadata: '{question}'")
+        intent = self._classify_intent(question)
+        print(f"[ROUTER] Intent: '{intent}' para: '{question}'")
+        
+        if intent == 'greeting':
+            return {
+                "answer": "¡Hola! Soy el asistente documental EPIIS. Puedo ayudarte a consultar documentos del repositorio, buscar información específica o responder preguntas sobre los archivos indexados. ¿En qué te puedo ayudar?",
+                "sources": []
+            }
+        
+        if intent == 'metadata':
             return self._handle_metadata_query()
-
+        
         # --- DETECCIÓN DE CONTEXTO AUTOMÁTICO ---
         auto_ctx = self._detect_document_context(question)
         
@@ -366,12 +379,25 @@ Responde: METADATA o CONTENIDO"""
                 "auto_detected_doc": auto_ctx["doc_name"] if (final_filter_id or final_boost_id) else None
             }
         
-        # 2. Formateo de las fuentes de Contexto
-        context_parts = [res['text'] for res in valid_results]
+        # Detectar tipo de pregunta ANTES de construir el contexto (para limitar según tipo)
+        question_type = self._detect_question_type(question)
+        
+        # 2. Formateo de las fuentes de Contexto (limitado según tipo)
+        # Limitar contexto según tipo — numeric SIEMPRE tiene prioridad
+        if query_type == "numeric":
+            max_chunks = 8
+        elif question_type == 'synthesis':
+            max_chunks = 5
+        elif question_type == 'factual':
+            max_chunks = 4
+        else:
+            max_chunks = 6
+        
+        context_parts = [res['text'] for res in valid_results[:max_chunks]]
         context_text = "\n\n".join(context_parts)
         
         # --- DEBUG: Imprimir lo que se recuperó ---
-        print(f"[DEBUG] Chunks recuperados: {len(valid_results)}")
+        print(f"[DEBUG] Chunks recuperados: {len(valid_results)}, usados: {len(context_parts)} (tipo: {question_type})")
         for i, r in enumerate(valid_results[:3]):
             print(f"[DEBUG] Chunk {i}: score={r.get('score', 0):.3f}, doc_id={r.get('document_id')}, text[:100]={r.get('text', '')[:100]}...")
         print(f"[DEBUG] Contexto total length: {len(context_text)} chars")
@@ -396,8 +422,7 @@ Responde: METADATA o CONTENIDO"""
             doc_context = f"""\nDOCUMENTO CONSULTADO: {auto_ctx['doc_name']}
 El usuario está preguntando específicamente sobre este documento. Analiza TODO el contenido proporcionado.\n"""
 
-        # Detectar tipo de pregunta y obtener template
-        question_type = self._detect_question_type(question)
+        # Obtener template según tipo de pregunta (ya detectado arriba)
         template = self.PROMPT_TEMPLATES.get(question_type, self.PROMPT_TEMPLATES['general'])
         
         system_msg = template['system']
@@ -417,12 +442,16 @@ El usuario está preguntando específicamente sobre este documento. Analiza TODO
         }
         
         try:
-            response = requests.post(url, json=payload, timeout=120)
+            # Timeout según complejidad
+            timeout = 60 if question_type == 'factual' else 90
+            response = requests.post(url, json=payload, timeout=timeout)
             response.raise_for_status()
             data = response.json()
             final_answer = data.get("message", {}).get("content", "Error: No se recibió respuesta válida.")
+        except requests.exceptions.Timeout:
+            final_answer = "⏱️ El procesamiento tardó demasiado. Intenta con una pregunta más específica o espera un momento."
         except Exception as e:
-            final_answer = f"(Error de comunicación con el motor de IA: {str(e)})"
+            final_answer = f"Error de comunicación con el motor de IA: {str(e)}"
             
         if self.persistence:
              user_id = self.persistence.create_or_get_user("sistema", "sistema@local.epiis")

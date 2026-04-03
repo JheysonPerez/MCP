@@ -13,6 +13,8 @@ from services.retrieval_service import RetrievalService
 from services.rag_service import RagService
 from services.generation_service import GenerationService
 from services.user_service import UserService
+from services.rerank_service import RerankService
+from services.hybrid_search_service import HybridSearchService
 
 load_dotenv()
 
@@ -28,9 +30,16 @@ def create_app():
     persistence = PersistenceService(db=db_conn)
     
     document_service = DocumentService(persistence_service=persistence)
-    chunk_service = ChunkService(chunk_size=300, overlap=50)
+    chunk_service = ChunkService(chunk_size=800, overlap=100)
     embedding_service = EmbeddingService()
-    retrieval_service = RetrievalService(embedding_service=embedding_service)
+    
+    rerank_service = RerankService()
+    hybrid_service = HybridSearchService()
+    retrieval_service = RetrievalService(
+        embedding_service=embedding_service,
+        rerank_service=rerank_service,
+        hybrid_service=hybrid_service
+    )
     # Inyectar chunk_service en rag_service
     rag_service = RagService(
         retrieval_service=retrieval_service, 
@@ -51,6 +60,8 @@ def create_app():
     app.document_service = document_service
     app.chunk_service = chunk_service
     app.retrieval_service = retrieval_service
+    app.rerank_service = rerank_service
+    app.hybrid_service = hybrid_service
     app.rag_service = rag_service
     app.generation_service = generation_service
     app.user_service = user_service

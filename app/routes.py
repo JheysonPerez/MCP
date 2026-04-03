@@ -71,7 +71,7 @@ def _get_stats():
 # --- GESTIÓN DE DOCUMENTOS ---
 
 @app.route("/documentos", methods=["GET"])
-@admin_required
+@login_required
 def documentos():
     docs = app.db_conn.execute_query("""
         SELECT id, filename, created_at, processing_status, is_indexed, chunk_count 
@@ -189,8 +189,24 @@ def consultar():
         if not pregunta:
             flash("Debes ingresar una pregunta válida.", "error")
         else:
-            # Filtro real para el motor RAG
-            filtro_doc = doc_seleccionado if (scope == "doc" and doc_seleccionado) else None
+            # Filtro real para el motor RAG - soporta ID numérico o nombre de archivo
+            filtro_doc = None
+            if scope == "doc" and doc_seleccionado:
+                # Primero intentar usar directamente como ID (si es numérico)
+                if doc_seleccionado.isdigit():
+                    filtro_doc = doc_seleccionado
+                else:
+                    # Si no es numérico, buscar por nombre de archivo
+                    try:
+                        doc_result = app.db_conn.execute_query(
+                            "SELECT id FROM documents WHERE filename = %s LIMIT 1",
+                            (doc_seleccionado,),
+                            fetch=True
+                        )
+                        if doc_result:
+                            filtro_doc = str(doc_result[0]['id'])
+                    except Exception as e:
+                        print(f"[ERROR] No se pudo obtener ID del documento: {e}")
 
             try:
                 # Aumentado top_k=10 para recuperar más contexto del documento

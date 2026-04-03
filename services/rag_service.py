@@ -8,6 +8,35 @@ from services.retrieval_service import RetrievalService
 from services.chunk_service import ChunkService
 
 class RagService:
+    # Templates de prompts dinámicos por tipo de pregunta
+    PROMPT_TEMPLATES = {
+        'factual': {
+            'system': "Eres un analista documental experto. Tu tarea es EXTRAER datos específicos del documento con precisión. Responde de forma concisa y directa, citando solo la información solicitada.",
+            'instruction': "Extrae y responde con el dato específico solicitado. Si es una fecha, nombre, número o código, proporciona únicamente ese valor.",
+            'options': {'temperature': 0.1, 'top_p': 0.3}
+        },
+        'synthesis': {
+            'system': "Eres un analista documental experto. Tu tarea es proporcionar un RESUMEN ESTRUCTURADO del documento, identificando los puntos clave y la información más relevante.",
+            'instruction': "Proporciona un resumen estructurado del documento, destacando: 1) Tema principal, 2) Puntos clave, 3) Información relevante encontrada.",
+            'options': {'temperature': 0.4, 'top_p': 0.7}
+        },
+        'analysis': {
+            'system': "Eres un analista documental experto. Tu tarea es ANALIZAR e INTERPRETAR la información del documento, explicando implicaciones y relaciones.",
+            'instruction': "Analiza la información proporcionada y explica las implicaciones, causas, efectos o relaciones relevantes. Proporciona un análisis fundamentado en el texto.",
+            'options': {'temperature': 0.5, 'top_p': 0.8}
+        },
+        'procedural': {
+            'system': "Eres un analista documental experto. Tu tarea es EXTRAER y PRESENTAR los pasos o procedimientos descritos en el documento de forma clara y ordenada.",
+            'instruction': "Extrae y lista los pasos, procedimientos o instrucciones descritos en el documento. Presenta la información de forma numerada y secuencial.",
+            'options': {'temperature': 0.2, 'top_p': 0.5}
+        },
+        'general': {
+            'system': "Eres un analista documental experto. Tu tarea es EXTRAER Y LISTAR TODA la información relevante del documento: nombres, fechas, números, estados, datos identificativos, cláusulas, resoluciones.",
+            'instruction': "Responde basándote exclusivamente en el contexto proporcionado. Extrae y lista la información relevante que responda a la pregunta.",
+            'options': {'temperature': 0.3, 'top_p': 0.6}
+        }
+    }
+
     def __init__(self, retrieval_service: RetrievalService, chunk_service: ChunkService, persistence_service=None):
         """
         Garantiza un pipeline completo RAG uniéndose con RetrievalService y Ollama (Generation).
@@ -83,10 +112,64 @@ class RagService:
     def _normalize_text(self, text: str) -> str:
         """ Normaliza texto para comparaciones seguras (minúsculas, sin extensiones ni símbolos). """
         if not text: return ""
-        t = text.lower()
+        t = text.strip()
+        # Limpiar comillas y puntuación del inicio/final
+        t = re.sub(r'^["\'\u201c\u201d\.\s]+|["\'\u201c\u201d\.\s]+$', '', t)
+        t = t.lower()
         t = re.sub(r'\.(pdf|docx|txt)$', '', t)
         t = re.sub(r'[^a-z0-9\s]', ' ', t)
         return " ".join(t.split())
+
+    def _detect_question_type(self, question: str) -> str:
+        """
+        Detecta el tipo de pregunta para seleccionar el prompt adecuado.
+        Retorna: 'factual', 'synthesis', 'analysis', 'procedural', 'general'
+        """
+        q_lower = question.lower()
+        
+        # Patrones para cada tipo
+        factual_patterns = [
+            r'\b(cu[aá]l|qui[eé]n|cu[aá]ndo|cu[aá]nto|d[oó]nde|qu[eé])\s+(es|son|fue|fueron|tiene|tienen|est[aá]|fue|est[áa]n)\b',
+            r'\b(n[uú]mero|fecha|dni|codigo|c[oó]digo|nombre|monto|cantidad|valor|estado)\b',
+            r'\b(d[oó]nde|cu[aá]ndo|en qu[eé] fecha)\b'
+        ]
+        
+        synthesis_patterns = [
+            r'\b(de qu[eé] trata|sobre qu[eé]|resumen|sintesis|s[ií]ntesis|contenido|de qu[eé] habla|qu[eé] dice|qu[eé] information)\b',
+            r'\b(hablame|cu[eé]ntame|dime|explicame|expl[ií]came)\s+(sobre|de|acerca de)\b',
+            r'\b(en resumen|en pocas palabras|brevemente)\b'
+        ]
+        
+        analysis_patterns = [
+            r'\b(implicaciones?|consecuencias?|impacto|efecto|por qu[eé]|causa|raz[oó]n|motivo)\b',
+            r'\b(analiza|analizar|interpreta|eval[uú]a|significado|qu[eé] significa)\b',
+            r'\b(c[oó]mo afecta|qu[eé] implica|qu[eé] consecuencias)\b'
+        ]
+        
+        procedural_patterns = [
+            r'\b(c[oó]mo\s+(se\s+)?hace|c[oó]mo\s+(se\s+)?realiza|procedimiento|proceso|pasos?)\b',
+            r'\b(qu[eé] debo hacer|c[uú]ales son los pasos|gu[ií]a|c[oó]mo proceder)\b',
+            r'\b(instrucciones?|requisitos?|paso a paso)\b'
+        ]
+        
+        # Verificar cada categoría
+        for pattern in factual_patterns:
+            if re.search(pattern, q_lower):
+                return 'factual'
+        
+        for pattern in synthesis_patterns:
+            if re.search(pattern, q_lower):
+                return 'synthesis'
+        
+        for pattern in analysis_patterns:
+            if re.search(pattern, q_lower):
+                return 'analysis'
+        
+        for pattern in procedural_patterns:
+            if re.search(pattern, q_lower):
+                return 'procedural'
+        
+        return 'general'
 
     def _detect_document_context(self, question: str) -> Dict:
         """
@@ -124,6 +207,36 @@ class RagService:
 
         return {"filter_id": None, "boost_id": None, "doc_name": None}
 
+    def _is_numeric_query(self, question: str) -> bool:
+        """
+        Detecta si la query busca datos numéricos exactos (DNI, códigos, fechas).
+        Estas queries necesitan mayor peso BM25 para encontrar coincidencias exactas.
+        """
+        q_lower = question.lower()
+        numeric_keywords = [
+            r'\bdni\b', r'\bcodigo\b', r'\bc[oó]digo\b', r'\bnumero\b', 
+            r'\bn[uú]mero\b', r'\bfecha\b', r'\bruc\b', r'\bexpediente\b',
+            r'\btelefono\b', r'\btel[eé]fono\b', r'\bcelular\b',
+            r'\bdocumento\b.*\bidentidad\b', r'\bidentificaci[oó]n\b',
+            r'\bpartida\b', r'\blibreta\b', r'\belectoral\b', r'\bpasaporte\b',
+            r'\bmatricula\b', r'\bregistro\b', r'\bserial\b', r'\bserie\b',
+            r'\bcuenta\b', r'\bcontrato\b', r'\borden\b', r'\bacta\b',
+            r'\bfolio\b', r'\btomo\b', r'\bficha\b', r'\bfile\b',
+            r'\bcertificado\b', r'\blicencia\b', r'\btarjeta\b',
+            r'\bplaca\b', r'\bchasis\b', r'\bmotor\b', r'\bvin\b',
+            r'\bclave\b', r'\bcontraseña\b', r'\bpin\b', r'\bpassword\b',
+            r'\bip\b', r'\bmac\b', r'\bimei\b', r'\bimsi\b', r'\besn\b',
+            r'\bmonto\b', r'\bsaldo\b', r'\bimporte\b', r'\bcantidad\b',
+            r'\bvalor\b', r'\bprecio\b', r'\bcosto\b', r'\btarifa\b',
+            r'\bafp\b', r'\bips\b', r'\bcuspp\b', r'\bessalud\b',
+            r'\bsunedu\b', r'\brnec\b', r'\bruc\b', r'\bdni\b', r'\bce\b',
+            r'\bptp\b', r'\bcie\b', r'\bpas\b', r'\bcm\b', r'\ble\b',
+        ]
+        for pattern in numeric_keywords:
+            if re.search(pattern, q_lower):
+                return True
+        return False
+
     def _is_metadata_query(self, question: str) -> bool:
         """
         Dos niveles de detección:
@@ -151,6 +264,10 @@ class RagService:
             r"(que\s+dice|que\s+contiene|que\s+hay\s+en|que\s+trata)",
             r"(informacion\s+sobre|contenido\s+de|resumen\s+de)",
             r"(segun\s+el|de\s+acuerdo\s+al|basado\s+en)",
+            # Patrones temporales - evitan que preguntas de fechas vayan a metadata
+            r"(cuando\s+(fue|es|vence|expira|caduca|emite|emitio|emitido|emitida|nace|naciste|otorgaron|otorgada|publicado|publicada|suscrito|suscrita))",
+            r"(fecha\s+(de\s+)?(emision|vencimiento|caducidad|nacimiento|expedicion|expiracion|otorgamiento|suscripcion|publicacion))",
+            r"(vigencia|caducidad|vencimiento|emision|expiracion)\s+del?",
         ]
         for p in contenido_obvio:
             if re.search(p, q):
@@ -203,6 +320,9 @@ Responde: METADATA o CONTENIDO"""
         return {"answer": answer, "sources": []}
 
     def generate_response(self, question: str, top_k: int = 10, document_id: str = None, chat_history: list = None) -> Dict:
+        # Limpiar pregunta de comillas y puntos extras del frontend
+        question = question.strip().strip('"\'.,')
+        
         if self._is_metadata_query(question):
             print(f"[INFO] Enrutando consulta de metadata: '{question}'")
             return self._handle_metadata_query()
@@ -219,12 +339,20 @@ Responde: METADATA o CONTENIDO"""
         elif final_boost_id:
             print(f"[INFO] Aplicando BOOST por detección parcial: {final_boost_id}")
 
+        # Detectar si es query numérica y pasar query_type
+        query_type = "numeric" if self._is_numeric_query(question) else "general"
+        if query_type == "numeric":
+            print(f"[INFO] Query numérica detectada: '{question}'")
+
         # --- EJECUCIÓN DE BÚSQUEDA ---
         retrieval_results = self.retrieval_service.search(
             question, 
             top_k=top_k, 
             document_id=final_filter_id,
-            boost_id=final_boost_id
+            boost_id=final_boost_id,
+            sql_threshold=0.35,
+            min_score=0.40,
+            query_type=query_type
         )
 
         # --- FILTRO DE CALIDAD ---
@@ -254,7 +382,7 @@ Responde: METADATA o CONTENIDO"""
             turnos = []
             for turno in chat_history[-3:]:  # últimos 3 turnos
                 turnos.append(f"Usuario: {turno['pregunta']}")
-                turnos.append(f"Asistente: {turno['respuesta'][:300]}...")
+                turnos.append(f"Asistente: {turno['respuesta'][:800]}...")  # Expandido de 300 a 800
             historial_texto = "\n".join(turnos)
 
         # 3. Construcción del Prompt Instruccional para Qwen
@@ -268,17 +396,14 @@ Responde: METADATA o CONTENIDO"""
             doc_context = f"""\nDOCUMENTO CONSULTADO: {auto_ctx['doc_name']}
 El usuario está preguntando específicamente sobre este documento. Analiza TODO el contenido proporcionado.\n"""
 
-        # 3. Llamada al LLM con mensajes ultra-directivos
-        system_msg = "Eres un analista documental experto. Tu tarea es EXTRAER Y LISTAR TODA la información relevante del documento: nombres, fechas, números, estados, datos identificativos, cláusulas, resoluciones, cualquier dato específico. NO hagas resúmenes generales ni descripciones vagas. Lista cada dato concreto que encuentres en el texto."
+        # Detectar tipo de pregunta y obtener template
+        question_type = self._detect_question_type(question)
+        template = self.PROMPT_TEMPLATES.get(question_type, self.PROMPT_TEMPLATES['general'])
         
-        # Si la pregunta es vaga sobre "hablame de este doc", convertirla en instrucción específica
-        question_lower = question.lower()
-        if any(word in question_lower for word in ['hablame', 'cuentame', 'dime', 'sobre', 'contenido', 'que dice', 'qué dice']):
-            specific_question = "Extrae y lista todos los datos específicos del documento: nombres completos, fechas, números de documento/identificación, estados, direcciones, cláusulas, resoluciones, y cualquier información identificativa o normativa que figure en el texto."
-        else:
-            specific_question = question
-            
-        user_msg = f"TEXTO DEL DOCUMENTO:\n{context_text}\n\nINSTRUCCIÓN: {specific_question}\n\nResponde listando CADA dato específico que encuentres en el texto anterior. NO hagas descripción general. Extrae información concreta: nombres, fechas, números, estados."
+        system_msg = template['system']
+        
+        # Nuevo orden: PREGUNTA → INSTRUCCIÓN → TEXTO DEL DOCUMENTO
+        user_msg = f"PREGUNTA: {question}\n\n{template['instruction']}\n\nTEXTO DEL DOCUMENTO:\n{context_text}"
         
         url = f"{self.base_url}/api/chat"
         payload = {
@@ -288,7 +413,7 @@ El usuario está preguntando específicamente sobre este documento. Analiza TODO
                 {"role": "user", "content": user_msg}
             ],
             "stream": False,
-            "options": {"temperature": 0.1, "top_p": 0.3}
+            "options": template['options']  # Usar options específicas del template
         }
         
         try:

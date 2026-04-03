@@ -1,6 +1,7 @@
 import os
 import shutil
 import mimetypes
+import re
 from pathlib import Path
 
 # Dependencias para extraer texto
@@ -163,6 +164,38 @@ class DocumentService:
         except Exception as e:
             raise ValueError(f"Error procesando imagen con OCR: {e}")
 
+    def _clean_extracted_text(self, text: str) -> str:
+        """
+        Limpia y normaliza texto extraído de PDFs con layout tabular.
+        """
+        lines = text.split('\n')
+        cleaned = []
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # Eliminar líneas que son solo ":"
+            if line == ':' or line == '':
+                i += 1
+                continue
+            
+            # Si la línea siguiente es solo ":" fusionar con la actual
+            if i + 1 < len(lines) and lines[i+1].strip() == ':':
+                line = line + ' :'
+                i += 2
+                continue
+            
+            # Corregir "VALOR:Campo" → "Campo : VALOR"
+            match = re.match(r'^([A-ZÁÉÍÓÚÑ\s]+):([A-Za-záéíóúñ\s]+)$', line)
+            if match:
+                valor, campo = match.group(1).strip(), match.group(2).strip()
+                line = f"{campo} : {valor}"
+            
+            cleaned.append(line)
+            i += 1
+        
+        return '\n'.join(cleaned)
+
     def process_and_save(self, file_path: str | Path) -> tuple[Path, Path, int]:
         """
         Realiza el flujo completo:
@@ -194,6 +227,9 @@ class DocumentService:
             
             # 3. Extraer texto
             extracted_text = self.extract_text(upload_path)
+            
+            # Limpiar texto extraído (normaliza PDFs con layout tabular)
+            extracted_text = self._clean_extracted_text(extracted_text)
             
             # 4. Generar nombre y ruta procesada
             safe_uuid = uuid.uuid4().hex[:8]

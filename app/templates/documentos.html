@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {% block title %}Documentos{% endblock %}
-{% block page_title %}Gestión de Documentos{% endblock %}
-{% block page_subtitle %}Administra el repositorio y el índice semántico{% endblock %}
+{% block page_title %}{% if session.get('user_role') == 'admin' %}Gestión de Documentos{% else %}Documentos Disponibles{% endif %}{% endblock %}
+{% block page_subtitle %}{% if session.get('user_role') == 'admin' %}Administra el repositorio y el índice semántico{% else %}Consulta documentos institucionales indexados{% endif %}{% endblock %}
 
 {% block content %}
 
@@ -10,7 +10,8 @@
 <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
 </div>
 
-<!-- UPLOAD CARD -->
+<!-- UPLOAD CARD - Solo Admin -->
+{% if session.get('user_role') == 'admin' %}
 <div class="card" style="margin-bottom: 1.5rem;">
     <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 0.4rem;">
         <i class="bi bi-upload" style="color: #1d4ed8;"></i> Subir nuevo documento
@@ -30,6 +31,7 @@
         </button>
     </form>
 </div>
+{% endif %}
 
 <!-- LISTADO CARD -->
 <div class="card">
@@ -90,6 +92,7 @@
                                style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-decoration: none; transition: all 0.2s;">
                                 <i class="bi bi-chat-left-text"></i>
                             </a>
+                            {% if session.get('user_role') == 'admin' %}
                             <form action="{{ url_for('reindex_document', doc_id=doc.id) }}" method="POST" style="display: inline;">
                                 <button type="submit" title="Reindexar" 
                                     style="background: #fff; color: #6b7280; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
@@ -107,6 +110,7 @@
                                 style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
                                 <i class="bi bi-trash"></i>
                             </button>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>

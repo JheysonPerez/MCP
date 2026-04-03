@@ -102,37 +102,46 @@
         border-radius: var(--radius-lg);
         border: 1px solid var(--color-border);
         box-shadow: var(--shadow-sm);
-        padding: 0.6rem 0.75rem 0.4rem 0.75rem; /* top right bottom left - reducido abajo */
+        padding: 0.6rem 0.75rem 0 0.75rem;
         margin-top: auto;
         position: sticky;
         bottom: 0.5rem;
-        z-index: 10;
+        z-index: 1; /* Bajo para que el botón pase por encima */
     }
 
-    /* Botón flotante - posición absoluta dentro del layout */
+    .query-form-container form {
+        margin: 0; /* Resetear margen por defecto del form */
+    }
+
+    /* Botón flotante scroll-to-bottom - centrado horizontal fijo */
     #scroll-bottom-btn {
         position: fixed;
-        bottom: 180px;
-        right: calc(2rem + 20px); /* Ajuste por sidebar */
-        width: 42px;
-        height: 42px;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 160px; /* Más arriba del formulario */
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
         background: var(--color-primary);
         color: white;
         border: none;
         cursor: pointer;
-        box-shadow: var(--shadow-md);
-        font-size: 1.2rem;
-        z-index: 50;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        font-size: 1rem;
+        z-index: 9999; /* Por encima de todo */
         display: none;
         align-items: center;
         justify-content: center;
-        transition: all 0.3s;
+        transition: all 0.2s;
+    }
+
+    #scroll-bottom-btn.show {
+        display: flex !important;
     }
 
     #scroll-bottom-btn:hover {
         background: var(--color-primary-hover);
-        transform: translateY(-2px);
+        transform: translateX(-50%) translateY(-2px);
     }
 
     .chat-container {
@@ -150,8 +159,8 @@
         resize: none;
         transition: all 0.2s;
         outline: none;
-        margin-bottom: 0.5rem;
-        min-height: 44px;
+        margin-bottom: 0.3rem; /* Reducido */
+        min-height: 40px;
         line-height: 1.4;
     }
 
@@ -196,20 +205,6 @@
         background: var(--color-bg);
         color: var(--color-error);
         border-color: var(--color-error-border);
-    }
-
-    .detection-badge {
-        background: var(--color-success-bg);
-        border: 1px solid var(--color-success);
-        color: var(--color-success);
-        padding: 0.3rem 0.6rem;
-        border-radius: var(--radius-pill);
-        font-size: 0.7rem;
-        font-weight: 700;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.3rem;
-        margin-top: 0.5rem;
     }
 </style>
 
@@ -308,8 +303,8 @@
         {% endif %}
     </div>
 
-    <!-- Botón flotante -->
-    <button id="scroll-bottom-btn" onclick="scrollToBottom()">
+    <!-- Botón flotante scroll-to-bottom -->
+    <button id="scroll-bottom-btn" onclick="scrollToBottom()" title="Ir al final">
         <i class="bi bi-chevron-down"></i>
     </button>
 
@@ -322,7 +317,7 @@
             <textarea id="pregunta" name="pregunta" rows="1" class="query-textarea"
                 placeholder="Escribe tu consulta..." required autofocus></textarea>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin: 0;">
                 <div style="display: flex; gap: 0.5rem;">
                     <button type="submit" class="btn-submit">
                         <i class="bi bi-send-fill"></i> Enviar
@@ -344,7 +339,17 @@
 </div>
 
 <script>
+    console.log('[Debug] Script iniciado');
+    
     let submitting = false;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('[Debug] DOM cargado');
+        const pageBody = document.querySelector('.page-body');
+        const scrollBtn = document.getElementById('scroll-bottom-btn');
+        console.log('[Debug] pageBody:', pageBody);
+        console.log('[Debug] scrollBtn:', scrollBtn);
+    });
     
     document.getElementById('chat-form').addEventListener('submit', function(e) {
         if (submitting) {
@@ -376,35 +381,51 @@
         }
     });
 
-    // Auto-scroll al último mensaje al cargar
-    function scrollToBottom() {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    // Prevenir que el navegador restaure la posición de scroll
+    if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
     }
-    window.addEventListener('load', scrollToBottom);
 
-    // Botón flotante scroll - mostrar/ocultar según posición
-    const scrollBtn = document.getElementById('scroll-bottom-btn');
-    const chatLayout = document.querySelector('.chat-layout');
-
-    function checkScrollPosition() {
-        if (!scrollBtn) return;
-        
-        // Verificar si estamos cerca del fondo de la página
-        const scrollPosition = window.scrollY + window.innerHeight;
-        const documentHeight = document.documentElement.scrollHeight;
-        const isNearBottom = (documentHeight - scrollPosition) < 100;
-        
-        if (!isNearBottom) {
-            scrollBtn.style.display = 'flex';
-        } else {
-            scrollBtn.style.display = 'none';
+    // Auto-scroll al último mensaje y botón scroll
+    const pageBody = document.querySelector('.page-body'); // El contenedor con scroll
+    
+    function scrollToBottom() {
+        if (pageBody) {
+            pageBody.scrollTo({ 
+                top: pageBody.scrollHeight, 
+                behavior: 'smooth' 
+            });
         }
     }
+    
+    // Scroll inicial al cargar - múltiples intentos
+    window.addEventListener('load', function() {
+        scrollToBottom();
+        setTimeout(scrollToBottom, 200);
+        setTimeout(scrollToBottom, 500);
+    });
 
-    // Escuchar scroll en la ventana
-    window.addEventListener('scroll', checkScrollPosition);
-    window.addEventListener('load', checkScrollPosition);
-    setTimeout(checkScrollPosition, 100);
+    // Botón flotante - mostrar/ocultar
+    const scrollBtn = document.getElementById('scroll-bottom-btn');
+    
+    function updateScrollButton() {
+        if (!pageBody || !scrollBtn) return;
+        
+        const scrolled = pageBody.scrollTop;
+        const maxScroll = pageBody.scrollHeight - pageBody.clientHeight;
+        const distanceFromBottom = maxScroll - scrolled;
+        
+        // Mostrar solo si scrolleamos hacia arriba y estamos lejos del fondo
+        // Umbral: más de 300px del fondo
+        if (scrolled > 150 && distanceFromBottom > 300) {
+            scrollBtn.classList.add('show');
+        } else {
+            scrollBtn.classList.remove('show');
+        }
+    }
+    
+    pageBody.addEventListener('scroll', updateScrollButton);
+    updateScrollButton(); // Check inicial
 </script>
 
 {% endblock %}

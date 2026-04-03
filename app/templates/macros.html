@@ -1,0 +1,119 @@
+{# Componentes compartidos para templates Flask #}
+
+{% macro scroll_to_bottom_button(form_selector='.query-form-container', offset=10) %}
+{# Macro: Botón flotante para volver al final de la página
+   Uso: {{ scroll_to_bottom_button(form_selector='.mi-formulario', offset=15) }}
+#}
+<button id="scroll-bottom-btn" class="scroll-bottom-btn" aria-label="Ir al final" title="Ir al final">
+    <i class="bi bi-chevron-down"></i>
+</button>
+
+<style>
+.scroll-bottom-btn {
+    position: fixed;
+    right: 2rem;
+    bottom: 100px; /* Posición fija inicial */
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    font-size: 1.1rem;
+    z-index: 100;
+    display: none; /* Oculto por defecto, JS lo muestra */
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.scroll-bottom-btn.visible {
+    display: flex !important;
+}
+
+.scroll-bottom-btn:hover {
+    background: var(--color-primary-hover, #1d4ed8);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+</style>
+
+<script>
+(function() {
+    'use strict';
+    
+    const scrollBtn = document.getElementById('scroll-bottom-btn');
+    
+    if (!scrollBtn) {
+        console.error('[ScrollButton] Botón no encontrado');
+        return;
+    }
+    
+    function getFormElement() {
+        return document.querySelector('.query-form-container');
+    }
+    
+    function updatePosition() {
+        const formEl = getFormElement();
+        let bottomPos = 100;
+        
+        if (formEl) {
+            const formRect = formEl.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const spaceAboveForm = viewportHeight - formRect.top;
+            
+            if (spaceAboveForm > 0) {
+                bottomPos = spaceAboveForm + 10;
+            }
+        }
+        
+        scrollBtn.style.bottom = Math.max(bottomPos, 80) + 'px';
+    }
+    
+    function scrollToBottom() {
+        window.scrollTo({ 
+            top: document.documentElement.scrollHeight, 
+            behavior: 'smooth' 
+        });
+    }
+    
+    function hasScrollableContent() {
+        return document.documentElement.scrollHeight > window.innerHeight + 50;
+    }
+    
+    function isNearBottom() {
+        const scrollPos = window.scrollY + window.innerHeight;
+        const docHeight = document.documentElement.scrollHeight;
+        return (docHeight - scrollPos) < 150;
+    }
+    
+    function updateVisibility() {
+        const shouldShow = hasScrollableContent() && !isNearBottom();
+        scrollBtn.classList.toggle('visible', shouldShow);
+    }
+    
+    scrollBtn.addEventListener('click', scrollToBottom);
+    window.addEventListener('scroll', updateVisibility, { passive: true });
+    window.addEventListener('resize', function() {
+        updatePosition();
+        updateVisibility();
+    });
+    
+    function init() {
+        updatePosition();
+        updateVisibility();
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+    
+    setTimeout(init, 300);
+    setTimeout(init, 1000);
+})();
+</script>
+{% endmacro %}

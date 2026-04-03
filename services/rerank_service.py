@@ -30,35 +30,55 @@ class RerankService:
         
     def rerank(self, query: str, chunks: List[Dict], top_k: int = 5) -> List[Dict]:
         """
-        Re-ordena chunks por relevancia usando scoring semántico.
+        Re-rankea chunks basado en relevancia con la query.
         
         Args:
-            query: La consulta del usuario
-            chunks: Lista de chunks con 'text' y metadata
-            top_k: Cuántos chunks retornar después de re-ranking
+            query: Texto de la consulta
+            chunks: Lista de chunks con 'text' y 'score'
+            top_k: Número de top resultados a retornar
             
         Returns:
-            Lista re-ordenada de chunks más relevantes
+            Lista re-ordenada de chunks con scores actualizados
         """
-        if not chunks or len(chunks) <= 2:
+        if not chunks:
+            return []
+        
+        # Si hay pocos chunks, no re-rankear
+        if len(chunks) <= 2:
             return chunks[:top_k]
         
-        # Scoring por relevance usando Ollama
-        scored_chunks = []
-        
-        for chunk in chunks:
-            score = self._score_relevance(query, chunk.get('text', ''))
-            scored_chunks.append({
-                **chunk,
-                'rerank_score': score,
-                # Combinar score original con rerank
-                'final_score': (chunk.get('score', 0.5) * 0.3) + (score * 0.7)
-            })
-        
-        # Ordenar por final_score descendente
-        scored_chunks.sort(key=lambda x: x['final_score'], reverse=True)
-        
-        return scored_chunks[:top_k]
+        try:
+            # Calcular scores de relevancia para cada chunk
+            scored_chunks = []
+            for chunk in chunks:
+                text = chunk.get('text', '')
+                original_score = chunk.get('score', 0.5)
+                
+                # Calcular score de relevancia semántica
+                relevance_score = self._score_relevance(query, text)
+                
+                # Combinar score original con relevancia (70% original, 30% relevance)
+                combined_score = (original_score * 0.7) + (relevance_score * 0.3)
+                
+                scored_chunk = chunk.copy()
+                scored_chunk['rerank_score'] = combined_score
+                scored_chunk['relevance_score'] = relevance_score
+                scored_chunks.append(scored_chunk)
+            
+            # Ordenar por score combinado (descendente)
+            scored_chunks.sort(key=lambda x: x['rerank_score'], reverse=True)
+            
+            print(f"[RERANK] Re-rankeando {len(chunks)} chunks para query: {query[:50]}...")
+            print(f"[RERANK] Top score original: {chunks[0].get('score', 0):.3f}")
+            print(f"[RERANK] Top score re-rankeado: {scored_chunks[0]['rerank_score']:.3f}")
+            print(f"[RERANK] Retornando top {top_k} chunks re-rankeados")
+            
+            return scored_chunks[:top_k]
+            
+        except Exception as e:
+            print(f"[RERANK] Error en re-ranking: {e}")
+            # Fallback: retornar chunks originales ordenados por score
+            return sorted(chunks, key=lambda x: x.get('score', 0), reverse=True)[:top_k]
     
     def _score_relevance(self, query: str, text: str) -> float:
         """

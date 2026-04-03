@@ -215,7 +215,16 @@ def consultar():
                     chat_history=chat_history
                 )
                 respuesta_rag = resultado["answer"].strip()
-                fuentes = resultado["sources"]
+                
+                # Deduplicar fuentes por filename, manteniendo el de mayor score
+                sources = resultado.get("sources", [])
+                seen_files = {}
+                for source in sources:
+                    fname = source.get("filename", "")
+                    if fname not in seen_files or source.get("score", 0) > seen_files[fname].get("score", 0):
+                        seen_files[fname] = source
+                fuentes = list(seen_files.values())
+                
                 pregunta_hecha = pregunta
 
                 # Actualizar historial en sesión para la PRÓXIMA consulta

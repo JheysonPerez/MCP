@@ -9,6 +9,7 @@ El sistema resuelve la dificultad de encontrar información específica en grand
 - **Audita el repositorio:** Provee estadísticas en tiempo real y reconciliación automática de archivos.
 - **Multiusuario con roles:** Sistema de autenticación con roles de administrador y usuario.
 - **Privacidad Local:** Utiliza **Ollama** para el procesamiento de lenguaje y generación de vectores, asegurando que los datos nunca salgan de la red local.
+- **Web Scraping:** Extrae y indexa contenido de páginas web para consultarlos junto con documentos tradicionales.
 
 ## 2. Diferencias y Flujo de Datos
 Para entender el sistema, es vital distinguir estos conceptos:
@@ -17,6 +18,7 @@ Para entender el sistema, es vital distinguir estos conceptos:
 - **Documento Procesado:** Aquel cuyo texto ha sido extraído con éxito (Estado: `completed`).
 - **Documento Indexado:** Aquel cuyos fragmentos (chunks) ya han sido convertidos en vectores numéricos y persistidos en la base de datos.
 - **Documento Consultable:** Un documento que está `completed` e `indexado`. Solo estos pueden responder preguntas de conocimiento.
+- **Fuente Web:** URL scrapeada e indexada como documento consultable, con soporte para actualización automática.
 
 ## 3. Arquitectura de Datos y Stack
 El sistema utiliza una arquitectura de persistencia robusta y moderna:
@@ -49,6 +51,13 @@ El sistema utiliza una arquitectura de persistencia robusta y moderna:
   - **Admin:** Subir, eliminar, reindexar documentos; gestionar usuarios.
   - **Usuario:** Consultar documentos, ver historial personal.
 - **Historial por usuario:** Auditoría de consultas individualizada.
+
+### Web Scraping
+- **Extracción de URLs:** Scrapea páginas web con `requests` + `BeautifulSoup4` y convierte HTML a texto markdown.
+- **Indexación automática:** Las URLs extraídas se procesan, indexan y quedan disponibles para consultas inmediatamente.
+- **Deduplicación:** Verifica que no existan URLs duplicadas antes de indexar.
+- **Actualización manual:** Botón para refrescar contenido de una URL ya indexada.
+- **Gestión visual:** Panel `/web` con stats, listado de fuentes y controles de eliminación.
 
 ### Generación Documental
 - **Modos de Creación:** Generación por prompt libre, basada en repositorio (RAG) o basada en documento específico.
@@ -101,29 +110,189 @@ psql -U postgres -d mcp_epiis -c "CREATE EXTENSION vector;"
 pip install -r requirements.txt
 ```
 
-### Guía de Inicio Rápido
-1.  **Entorno Virtual:**
-    ```bash
-    python -m venv venv
-    source venv/bin/activate
-    pip install -r requirements.txt
-    ```
-2.  **Configuración (`.env`):**
-    ```env
-    DATABASE_URL=postgresql://usuario:password@localhost:5432/mcp_epiis
-    OLLAMA_BASE_URL=http://localhost:11434
-    OLLAMA_CHAT_MODEL=qwen2.5:3b
-    OLLAMA_EMBED_MODEL=embeddinggemma
-    ```
-3.  **Base de Datos:**
-    ```bash
-    psql -d mcp_epiis -f db/schema.sql
-    python scripts/create_admin.py
-    ```
-4.  **Arranque:**
-    ```bash
-    python run_web.py
-    ```
+### Guía de Inicio Rápido (macOS/Ubuntu)
+
+#### 1. Clonar el repositorio
+```bash
+git clone https://github.com/JheysonPerez/MCP.git
+cd MCP
+```
+
+#### 2. Entorno Virtual e Instalación de dependencias
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+#### 3. Base de Datos PostgreSQL + pgvector (Automático)
+
+**Opción A: Usando el script de migraciones automático (Recomendado):**
+```bash
+python db/migrate.py
+```
+
+Este script verifica automáticamente qué migraciones faltan y las aplica:
+- Crea la extensión `pgvector` si no existe
+- Agrega columnas para web scraping (`source_url`, `source_type`, etc.)
+- Verifica que todas las tablas core estén listas
+
+**Opciones del script:**
+```bash
+python db/migrate.py --status    # Ver estado de migraciones
+python db/migrate.py --check     # Solo verificar, no aplicar
+python db/migrate.py --verify    # Verificar que todo esté listo
+```
+
+**Opción B: Manual paso a paso:**
+
+**macOS (con Homebrew):**
+```bash
+# Instalar PostgreSQL y pgvector
+brew install postgresql@17
+brew install pgvector
+
+# Iniciar PostgreSQL
+brew services start postgresql@17
+
+# Crear base de datos
+psql postgres -c "CREATE DATABASE mcp_epiis;"
+psql postgres -c "CREATE USER mcp_user WITH PASSWORD 'tu_password';"
+psql postgres -c "GRANT ALL PRIVILEGES ON DATABASE mcp_epiis TO mcp_user;"
+
+# Instalar extensión pgvector
+psql mcp_epiis -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+# Ejecutar schema inicial
+psql mcp_epiis -f db/schema.sql
+```
+
+**Ubuntu/Debian:**
+```bash
+# Instalar PostgreSQL 17
+sudo apt update
+sudo apt install -y postgresql-17 postgresql-server-dev-17
+
+# Instalar pgvector desde fuente
+sudo apt install -y cmake
+sudo apt install -y postgresql-server-dev-17
+cd /tmp
+git clone https://github.com/pgvector/pgvector.git
+cd pgvector
+git checkout v0.8.0
+make
+sudo make install
+
+# Crear base de datos y usuario
+sudo -u postgres psql -c "CREATE DATABASE mcp_epiis;"
+sudo -u postgres psql -c "CREATE USER mcp_user WITH PASSWORD 'tu_password';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE mcp_epiis TO mcp_user;"
+
+# Instalar extensión y schema
+sudo -u postgres psql mcp_epiis -c "CREATE EXTENSION IF NOT EXISTS vector;"
+psql mcp_epiis -f db/schema.sql
+```
+
+#### 4. Ollama (Modelos de IA)
+```bash
+# Instalar Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Descargar modelos requeridos
+ollama pull qwen2.5:3b
+ollama pull embeddinggemma
+
+# Verificar instalación
+ollama list
+```
+
+#### 5. Configuración (`.env`)
+Crear archivo `.env` en la raíz del proyecto:
+```env
+DATABASE_URL=postgresql://mcp_user:tu_password@localhost:5432/mcp_epiis
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_CHAT_MODEL=qwen2.5:3b
+OLLAMA_EMBED_MODEL=embeddinggemma
+SECRET_KEY=tu_secreto_seguro_aqui
+```
+
+#### 6. Crear usuario administrador
+```bash
+python scripts/create_admin.py
+```
+
+#### 7. Iniciar la aplicación
+```bash
+python run_web.py
+```
+
+Acceder a: http://127.0.0.1:5000
+
+---
+
+## 8. Schema y Migraciones de Base de Datos
+
+### Schema Completo (`db/schema.sql`)
+
+El archivo `db/schema.sql` contiene **todo el schema de la base de datos** en un solo archivo idempotente:
+
+- ✅ Extensión `pgvector` para vectores
+- ✅ Tablas: `users`, `documents`, `chunks`, `queries`, `responses`, `generated_documents_v2`
+- ✅ Columnas para web scraping (`source_url`, `source_type`, etc.)
+- ✅ Índices optimizados para búsquedas
+
+**Características:**
+- **Idempotente:** Puedes ejecutarlo 100 veces, solo creará lo que falte
+- **Completo:** Contiene todo desde la instalación inicial hasta las últimas features
+- **Actualizado:** Siempre refleja el estado actual del proyecto
+
+### Script de Migraciones Automático (`db/migrate.py`)
+
+Este script ejecuta el schema completo y verifica que todo esté listo:
+
+```bash
+# Ejecutar migraciones (aplica schema.sql completo)
+python db/migrate.py
+
+# Verificar estado sin aplicar cambios
+python db/migrate.py --check
+
+# Ver estado detallado de todas las tablas
+python db/migrate.py --status
+
+# Verificar que todo funcione correctamente
+python db/migrate.py --verify
+```
+
+**¿Qué hace el script?**
+1. Ejecuta `db/schema.sql` completo (idempotente)
+2. Verifica que existan todas las tablas necesarias
+3. Comprueba que la extensión `pgvector` esté instalada
+4. Valida columnas de web scraping
+5. Muestra ✅ o ❌ por cada componente
+
+### Uso Manual del Schema (alternativa)
+
+Si prefieres no usar el script de migraciones:
+
+```bash
+# Ejecutar schema manualmente
+psql $DATABASE_URL -f db/schema.sql
+
+# O especificando la base de datos
+psql mcp_epiis -f db/schema.sql
+```
+
+### Actualizaciones Futuras
+
+Cuando el proyecto evolucione y se agreguen nuevas tablas/columnas:
+
+1. **Actualizar `db/schema.sql`:** Agregar las nuevas definiciones con `IF NOT EXISTS`
+2. **Ejecutar migraciones:** `python db/migrate.py`
+
+El script detectará automáticamente qué falta y lo creará.
+
+---
 
 ## 7. Limitaciones y Roadmap
 
@@ -139,6 +308,7 @@ pip install -r requirements.txt
 - ✅ **Chunking Inteligente:** Detección de secciones y contexto.
 
 ### Roadmap (Pendiente 🚀)
+- ✅ **Web Scraping:** Extracción e indexación de contenido web.
 - ⚠️ OCR para imágenes JPG/PNG sueltas.
 - ⚠️ Deploy producción Ubuntu con systemd/nginx.
 - ⚠️ Benchmark de evaluación RAG (RAGAS/TruLens).

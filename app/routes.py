@@ -570,6 +570,16 @@ def web_add():
         flash('URL inválida. Asegúrate de incluir http:// o https://', 'error')
         return redirect(url_for('web_sources'))
     
+    # Verificar si la URL ya existe (normalizar URL para comparación)
+    existing = app.db_conn.execute_query(
+        "SELECT id, filename FROM documents WHERE source_url = %s OR original_path = %s LIMIT 1",
+        (url, url),
+        fetch=True
+    )
+    if existing:
+        flash(f'Esta URL ya está indexada como "{existing[0]["filename"]}". Elimínala primero si deseas re-indexarla.', 'warning')
+        return redirect(url_for('web_sources'))
+    
     try:
         result = scraper.scrape_url(url)
         if not result['success']:

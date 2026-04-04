@@ -1,5 +1,11 @@
 -- Creación de la estructura base de la base de datos PostgreSQL.
 -- Este archivo se puede ejecutar manualmente o a través del script de setup en Python.
+-- Es IDEMPOTENTE: puede ejecutarse múltiples veces sin errores.
+
+-- Habilitar extensión para vectores (requerida para embeddings)
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Tablas core del sistema
 
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -23,14 +29,36 @@ CREATE TABLE IF NOT EXISTS documents (
     chunk_count INTEGER DEFAULT 0,
     last_indexed_at TIMESTAMP WITH TIME ZONE,
     error_log TEXT,
+    -- Campos para fuentes web
+    source_url TEXT DEFAULT NULL,
+    source_type VARCHAR(20) DEFAULT 'file',
+    auto_refresh BOOLEAN DEFAULT FALSE,
+    refresh_frequency VARCHAR(20) DEFAULT 'manual',
+    last_scraped_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_processing_status 
-        CHECK (processing_status IN ('pending', 'completed', 'failed'))
+        CHECK (processing_status IN ('pending', 'completed', 'failed')),
+    CONSTRAINT check_source_type 
+        CHECK (source_type IN ('file', 'web'))
+);
+
+-- Tabla de chunks para embeddings vectoriales (RAG)
+CREATE TABLE IF NOT EXISTS chunks (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+    chunk_text TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    embedding VECTOR(768),  -- Dimensión para embeddinggemma
+    section_context TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Índices para optimizar el arranque y la gestión del repositorio
 CREATE INDEX IF NOT EXISTS idx_documents_indexed ON documents(is_indexed);
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(processing_status);
+CREATE INDEX IF NOT EXISTS idx_documents_source_type ON documents(source_type);
+CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks USING ivfflat (embedding vector_cosine_ops);
 
 CREATE TABLE IF NOT EXISTS queries (
     id SERIAL PRIMARY KEY,

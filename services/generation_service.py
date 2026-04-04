@@ -421,9 +421,7 @@ INSTRUCCIONES DEL USUARIO:
         return buffer.getvalue()
 
     def export_pdf(self, gen_id: int) -> bytes:
-        """Exporta documento generado como PDF en memoria."""
         from fpdf import FPDF
-        from io import BytesIO
         import re
 
         doc_data = self.get_by_id(gen_id)
@@ -435,6 +433,20 @@ INSTRUCCIONES DEL USUARIO:
         pdf.add_page()
         pdf.set_margins(20, 20, 20)
 
+        # Limpiar caracteres problemáticos para latin-1
+        def clean(text):
+            replacements = {
+                '•': '-', '–': '-', '—': '-',
+                '\u2019': "'", '\u2018': "'",
+                '\u201c': '"', '\u201d': '"',
+                '°': 'o', '→': '->', '←': '<-',
+                '\u00b7': '-', '\u2022': '-',
+            }
+            for char, replacement in replacements.items():
+                text = text.replace(char, replacement)
+            # Eliminar cualquier otro caracter fuera de latin-1
+            return text.encode('latin-1', errors='replace').decode('latin-1')
+
         for line in doc_data["content"].split("\n"):
             line = line.strip()
             if not line:
@@ -442,37 +454,35 @@ INSTRUCCIONES DEL USUARIO:
                 continue
 
             if line.startswith("# "):
-                pdf.set_font("Helvetica", "B", 18)
+                pdf.set_font("Helvetica", "B", 16)
                 pdf.set_text_color(30, 30, 30)
-                clean = line[2:]
-                pdf.multi_cell(0, 10, clean)
-                pdf.ln(2)
+                pdf.multi_cell(0, 10, clean(line[2:]))
+                pdf.ln(3)
             elif line.startswith("## "):
-                pdf.set_font("Helvetica", "B", 14)
+                pdf.set_font("Helvetica", "B", 13)
                 pdf.set_text_color(50, 50, 50)
-                clean = line[3:]
-                pdf.multi_cell(0, 8, clean)
-                pdf.ln(1)
+                pdf.multi_cell(0, 8, clean(line[3:]))
+                pdf.ln(2)
             elif line.startswith("### "):
-                pdf.set_font("Helvetica", "B", 12)
+                pdf.set_font("Helvetica", "B", 11)
                 pdf.set_text_color(70, 70, 70)
-                clean = line[4:]
-                pdf.multi_cell(0, 7, clean)
-            elif line.startswith("- ") or line.startswith("* "):
+                pdf.multi_cell(0, 7, clean(line[4:]))
+            elif re.match(r'^[-*•]\s+', line):
                 pdf.set_font("Helvetica", "", 11)
                 pdf.set_text_color(40, 40, 40)
-                clean = re.sub(r'\*\*(.*?)\*\*', r'\1', line[2:])
-                clean = re.sub(r'\*(.*?)\*', r'\1', clean)
-                pdf.multi_cell(0, 6, f"  • {clean}")
+                content_line = re.sub(r'^[-*•]\s+', '', line)
+                content_line = re.sub(r'\*\*(.*?)\*\*', r'\1', content_line)
+                pdf.multi_cell(0, 6, clean(f"  - {content_line}"))
+            elif line.startswith("---"):
+                pdf.ln(2)
+                pdf.set_draw_color(200, 200, 200)
+                pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+                pdf.ln(3)
             else:
                 pdf.set_font("Helvetica", "", 11)
                 pdf.set_text_color(40, 40, 40)
-                clean = re.sub(r'\*\*(.*?)\*\*', r'\1', line)
-                clean = re.sub(r'\*(.*?)\*', r'\1', clean)
-                try:
-                    pdf.multi_cell(0, 6, clean)
-                except:
-                    pdf.multi_cell(0, 6, clean.encode('latin-1', 
-                                   errors='replace').decode('latin-1'))
+                clean_line = re.sub(r'\*\*(.*?)\*\*', r'\1', line)
+                clean_line = re.sub(r'\*(.*?)\*', r'\1', clean_line)
+                pdf.multi_cell(0, 6, clean(clean_line))
 
         return bytes(pdf.output())

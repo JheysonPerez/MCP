@@ -391,12 +391,17 @@ def generar_descargar(gen_id):
     if fmt == "docx":
         try:
             content = app.generation_service.export_docx(gen_id)
-            return Response(
+            response = Response(
                 content,
                 mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                headers={"Content-Disposition": 
-                         f"attachment; filename={safe_title}.docx"}
+                headers={
+                    "Content-Disposition": f"attachment; filename=\"{safe_title}.docx\"",
+                    "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "X-Content-Type-Options": "nosniff",
+                    "Cache-Control": "no-cache"
+                }
             )
+            return response
         except Exception as e:
             flash(f"Error al exportar DOCX: {str(e)}", "error")
             return redirect(url_for("generar_ver", gen_id=gen_id))
@@ -404,12 +409,17 @@ def generar_descargar(gen_id):
     elif fmt == "pdf":
         try:
             content = app.generation_service.export_pdf(gen_id)
-            return Response(
+            response = Response(
                 content,
                 mimetype="application/pdf",
-                headers={"Content-Disposition": 
-                         f"attachment; filename={safe_title}.pdf"}
+                headers={
+                    "Content-Disposition": f"attachment; filename=\"{safe_title}.pdf\"",
+                    "Content-Type": "application/pdf",
+                    "X-Content-Type-Options": "nosniff",
+                    "Cache-Control": "no-cache"
+                }
             )
+            return response
         except Exception as e:
             flash(f"Error al exportar PDF: {str(e)}", "error")
             return redirect(url_for("generar_ver", gen_id=gen_id))
@@ -565,7 +575,7 @@ def web_sources():
     total = len(docs)
     active = len([d for d in docs if d.get('is_indexed')])
     updating = len([d for d in docs if d.get('processing_status') == 'pending'])
-    return render_template('web.html', web_docs=docs, total=total, active=active, updating=updating, now=datetime.utcnow())
+    return render_template('web.html', web_docs=docs, total=total, active=active, updating=updating, now=datetime.now(timezone.utc))
 
 @app.route('/web/add', methods=['POST'])
 @login_required

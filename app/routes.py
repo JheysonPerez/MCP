@@ -5,7 +5,7 @@ from werkzeug.security import check_password_hash
 from pathlib import Path
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .decorators import login_required, admin_required
 
@@ -555,7 +555,7 @@ def web_sources():
     total = len(docs)
     active = len([d for d in docs if d.get('is_indexed')])
     updating = len([d for d in docs if d.get('processing_status') == 'pending'])
-    return render_template('web.html', web_docs=docs, total=total, active=active, updating=updating, now=datetime.utcnow())
+    return render_template('web.html', web_docs=docs, total=total, active=active, updating=updating, now=datetime.now(timezone.utc))
 
 @app.route('/web/add', methods=['POST'])
 @login_required

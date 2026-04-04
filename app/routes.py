@@ -306,8 +306,15 @@ def historial():
 @login_required
 def generar():
     
+    # Documentos de archivo (excluyendo web)
     documentos_lista = app.db_conn.execute_query(
-        "SELECT id, filename FROM documents WHERE is_indexed = TRUE ORDER BY filename;",
+        "SELECT id, filename FROM documents WHERE is_indexed = TRUE AND (source_type = 'file' OR source_type IS NULL) ORDER BY filename;",
+        fetch=True
+    ) or []
+    
+    # Documentos web
+    web_lista = app.db_conn.execute_query(
+        "SELECT id, filename, source_url FROM documents WHERE is_indexed = TRUE AND source_type = 'web' ORDER BY filename;",
         fetch=True
     ) or []
     
@@ -315,6 +322,7 @@ def generar():
     
     return render_template("generar.html",
         documentos_lista=documentos_lista,
+        web_lista=web_lista,
         generados=generados,
         username=session.get("username")
     )
@@ -325,6 +333,7 @@ def generar_crear():
     
     prompt = request.form.get("prompt", "").strip()
     mode = request.form.get("mode", "prompt_libre")
+    doc_type = request.form.get("doc_type", "libre")
     doc_format = request.form.get("formato", "markdown")
     source_doc_id = request.form.get("source_doc_id", "").strip()
     
@@ -337,6 +346,7 @@ def generar_crear():
     try:
         resultado = app.generation_service.generate(
             prompt=prompt,
+            doc_type=doc_type,
             mode=mode,
             source_doc_ids=source_doc_ids,
             doc_format=doc_format,

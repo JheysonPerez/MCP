@@ -1,10 +1,126 @@
 import os
+import re
 import requests
 from typing import Dict, List, Optional
 from services.retrieval_service import RetrievalService
 from services.persistence_service import PersistenceService
 
+
 class GenerationService:
+    DOCUMENT_TYPES = {
+        "informe": {
+            "label": "Informe Técnico",
+            "icon": "bi-clipboard-data",
+            "system": """Eres un redactor experto en documentos institucionales universitarios peruanos.
+Generas informes técnicos formales con estructura clara y lenguaje profesional.
+SIEMPRE usa este esquema:
+# [TÍTULO DEL INFORME]
+## I. INTRODUCCIÓN
+## II. ANTECEDENTES
+## III. ANÁLISIS / DESARROLLO
+## IV. CONCLUSIONES
+## V. RECOMENDACIONES
+Usa numeración romana para secciones. Lenguaje formal. Sin markdown decorativo innecesario.""",
+            "instruction": "Genera un informe técnico institucional completo y bien estructurado basado en las instrucciones."
+        },
+        "acta": {
+            "label": "Acta de Reunión",
+            "icon": "bi-journal-text",
+            "system": """Eres un secretario institucional experto en redacción de actas formales universitarias peruanas.
+SIEMPRE usa este esquema:
+# ACTA N° [NÚMERO] - [NOMBRE DEL ÓRGANO]
+**Fecha:** [fecha]
+**Hora de inicio:** [hora]
+**Lugar:** [lugar]
+**Presidente:** [nombre]
+**Secretario:** [nombre]
+## ASISTENTES
+## ORDEN DEL DÍA
+## DESARROLLO DE LA SESIÓN
+### Punto 1: [tema]
+## ACUERDOS
+## CIERRE
+**Hora de cierre:** [hora]
+_________________________________
+Firmas""",
+            "instruction": "Genera un acta de reunión formal y completa basada en las instrucciones."
+        },
+        "memo": {
+            "label": "Memorando",
+            "icon": "bi-envelope-paper",
+            "system": """Eres un redactor experto en comunicaciones internas institucionales universitarias.
+SIEMPRE usa este esquema exacto:
+MEMORANDO N° [NÚMERO]-[AÑO]-[UNIDAD]
+**PARA:** [destinatario y cargo]
+**DE:** [remitente y cargo]  
+**ASUNTO:** [asunto concreto]
+**FECHA:** [fecha]
+---
+[Cuerpo del memorando: saludo protocolar, desarrollo del asunto, petición o comunicado]
+Atentamente,
+[Firma y cargo]""",
+            "instruction": "Genera un memorando institucional formal basado en las instrucciones."
+        },
+        "resolucion": {
+            "label": "Resolución",
+            "icon": "bi-bank",
+            "system": """Eres un redactor jurídico-administrativo experto en resoluciones universitarias peruanas.
+SIEMPRE usa este esquema:
+# RESOLUCIÓN [RECTORAL/DECANAL/DIRECTORAL] N° [NÚMERO]-[AÑO]-[SIGLAS]
+**[Ciudad], [fecha completa]**
+## VISTO:
+[Expediente o documento que origina la resolución]
+## CONSIDERANDO:
+Que, [primer considerando];
+Que, [segundo considerando];
+Que, [estando a lo expuesto y en uso de las atribuciones conferidas];
+## RESUELVE:
+**Artículo 1°.-** [Primera disposición]
+**Artículo 2°.-** [Segunda disposición]
+**Artículo 3°.-** Regístrese, comuníquese y archívese.
+[Firma y cargo]""",
+            "instruction": "Genera una resolución administrativa formal basada en las instrucciones."
+        },
+        "oficio": {
+            "label": "Oficio",
+            "icon": "bi-send",
+            "system": """Eres un redactor experto en comunicaciones oficiales institucionales universitarias peruanas.
+SIEMPRE usa este esquema:
+OFICIO N° [NÚMERO]-[AÑO]-[UNIDAD]
+[Ciudad], [fecha]
+Señor(a):
+[Nombre completo]
+[Cargo]
+[Institución]
+Presente.-
+Asunto: [asunto]
+---
+[Cuerpo: saludo protocolar, motivo, desarrollo, petición o comunicado]
+Es propicia la oportunidad para expresarle las muestras de mi especial consideración y estima.
+Atentamente,
+[Firma]
+[Nombre completo]
+[Cargo]""",
+            "instruction": "Genera un oficio institucional formal basado en las instrucciones."
+        },
+        "libre": {
+            "label": "Documento Libre",
+            "icon": "bi-pen",
+            "system": """Eres un redactor experto en documentos institucionales.
+Generas documentos bien estructurados, profesionales y coherentes.
+REGLAS ESTRICTAS:
+- Usa la información de referencia como fuente, NO la copies literalmente
+- SIEMPRE incluye los datos específicos del titular o sujeto del documento (nombres, DNI, fechas, etc.)
+- Sintetiza y redacta con tus propias palabras
+- Estructura con encabezados claros en Markdown
+- El documento debe ser coherente de principio a fin
+- NO incluyas frases como 'DATOS DEL DOCUMENTO' ni metadatos del sistema
+FORMATO OBLIGATORIO: Empieza siempre con:
+# [Título descriptivo del documento]""",
+            "instruction": "Genera el documento solicitado de forma profesional, sintetizando la información de referencia."
+        }
+    }
+
     def __init__(self, retrieval_service: RetrievalService, 
                  persistence_service: PersistenceService):
         self.retrieval = retrieval_service
@@ -14,14 +130,15 @@ class GenerationService:
         self.generated_dir = "data/generated"
         os.makedirs(self.generated_dir, exist_ok=True)
 
-    def generate(self, prompt: str, mode: str = "prompt_libre",
+    def generate(self, prompt: str, doc_type: str = "libre",
+                 mode: str = "prompt_libre",
                  source_doc_ids: List[int] = None,
                  doc_format: str = "markdown",
                  user_id: int = None) -> Dict:
         """
-        Genera un documento nuevo usando IA.
-        Modos: prompt_libre, basado_repositorio, basado_documento
+        Genera un documento nuevo usando IA con prompts especializados por tipo.
         """
+        template = self.DOCUMENT_TYPES.get(doc_type, self.DOCUMENT_TYPES["libre"])
         context_text = ""
         used_doc_ids = []
 
@@ -31,66 +148,139 @@ class GenerationService:
                 mode == "basado_documento" and source_doc_ids
             ) else None
 
+            # Query expandida para mejor retrieval
+            retrieval_query = prompt
+            if mode == "basado_documento":
+                retrieval_query = f"{prompt}. datos personales nombre apellidos DNI documento identidad fecha nacimiento antecedentes trayectoria educativa experiencia laboral vigencia"
+
             results = self.retrieval.search(
-                query=prompt,
-                top_k=8,
-                document_id=doc_id_filter
+                query=retrieval_query,
+                top_k=10,
+                document_id=doc_id_filter,
+                sql_threshold=0.25,
+                use_rerank=True
             )
 
-            if results:
-                context_parts = [r["text"] for r in results]
-                context_text = "\n\n".join(context_parts)
-                used_doc_ids = list({r["document_id"] for r in results})
+            # Para documentos específicos: forzar chunks con datos clave via SQL directo
+            forced_chunks = []
+            if mode == "basado_documento" and doc_id_filter:
+                try:
+                    conn = self.persistence.db.get_connection()
+                    from psycopg2.extras import RealDictCursor
+                    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                        cur.execute("""
+                            SELECT chunk_text as text, 1.0 as score, document_id
+                            FROM document_chunks
+                            WHERE document_id = %s
+                            AND (
+                                chunk_text ILIKE '%nombre%'
+                                OR chunk_text ILIKE '%apellido%'
+                                OR chunk_text ILIKE '%nacimiento%'
+                                OR chunk_text ILIKE '%DNI%'
+                                OR chunk_text ILIKE '%N° de documento%'
+                                OR chunk_text ILIKE '%titular%'
+                            )
+                            ORDER BY chunk_index ASC
+                            LIMIT 3;
+                        """, (doc_id_filter,))
+                        forced_chunks = [dict(r) for r in cur.fetchall()]
+                    conn.close()
+                except Exception as e:
+                    print(f"[GEN] Error forzando chunks: {e}")
 
-        # Construir prompt según modo
-        if mode == "prompt_libre":
-            full_prompt = f"""Eres un asistente experto en redacción institucional.
-Genera un documento profesional basado en las siguientes instrucciones.
-El documento debe estar bien estructurado, con secciones claras.
-Usa formato Markdown si el usuario no especifica otro formato.
+            if results or forced_chunks:
+                valid = [r for r in results if r.get("score", 0) >= 0.30]
+                
+                # Combinar: forced_chunks primero, luego el retrieval normal (sin duplicados)
+                forced_texts = {c["text"] for c in forced_chunks}
+                unique_results = [r for r in valid if r.get("text") not in forced_texts]
+                
+                combined = forced_chunks + unique_results
+                context_parts = [r["text"] for r in combined[:8]]
+                
+                # Limpiar headers de chunking
+                clean_parts = []
+                for part in context_parts:
+                    cleaned = re.sub(r'^##\s+[A-ZÁÉÍÓÚÑ\s]+\n', '', part, flags=re.MULTILINE)
+                    cleaned = cleaned.strip()
+                    if cleaned:
+                        clean_parts.append(cleaned)
+                
+                context_text = "\n\n---\n\n".join(clean_parts)
+                used_doc_ids = list({r.get("document_id") for r in combined if r.get("document_id")})
 
-INSTRUCCIONES DEL USUARIO:
-{prompt}
+        # Construir mensajes para api/chat
+        system_msg = template["system"]
 
-DOCUMENTO GENERADO:"""
+        if context_text:
+            user_msg = f"""{template['instruction']}
 
-        else:
-            full_prompt = f"""Eres un asistente experto en redacción institucional.
-Genera un documento profesional basado en las instrucciones del usuario
-y el contenido de referencia proporcionado.
-El documento debe estar bien estructurado y fundamentado en el contexto.
-Usa formato Markdown si el usuario no especifica otro formato.
-
-CONTENIDO DE REFERENCIA:
+CONTEXTO DE REFERENCIA (usa esta información como base, NO la copies directamente):
 {context_text}
 
 INSTRUCCIONES DEL USUARIO:
 {prompt}
 
-DOCUMENTO GENERADO:"""
+IMPORTANTE: Redacta el documento de forma coherente y estructurada. NO copies el contexto palabra por palabra. Sintetiza y presenta la información de forma profesional según el tipo de documento solicitado."""
+        else:
+            user_msg = f"""{template['instruction']}
 
-        # Llamar al LLM
+INSTRUCCIONES DEL USUARIO:
+{prompt}"""
+
+        # Llamar al LLM via api/chat (no api/generate)
         try:
             response = requests.post(
-                f"{self.base_url}/api/generate",
-                json={"model": self.chat_model, 
-                      "prompt": full_prompt, 
-                      "stream": False},
-                timeout=120
+                f"{self.base_url}/api/chat",
+                json={
+                    "model": self.chat_model,
+                    "messages": [
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg}
+                    ],
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.4,
+                        "top_p": 0.8,
+                        "num_predict": 2048
+                    }
+                },
+                timeout=180
             )
             response.raise_for_status()
-            content = response.json().get("response", "").strip()
+            content = response.json().get("message", {}).get("content", "").strip()
+        except requests.exceptions.Timeout:
+            return {"success": False, "error": "⏱️ El modelo tardó demasiado. Intenta con instrucciones más cortas."}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
         if not content:
             return {"success": False, "error": "El modelo no generó contenido."}
 
-        # Extraer título de la primera línea
-        lines = content.strip().split("\n")
-        title = lines[0].replace("#", "").strip()
-        if not title or len(title) > 200:
-            title = prompt[:100]
+        # Extraer título — buscar primero un encabezado H1, luego H2, luego usar el prompt
+        title = ""
+
+        # Buscar línea con # al inicio
+        for line in content.strip().split("\n"):
+            clean = line.strip()
+            if clean.startswith("# "):
+                title = clean[2:].strip()
+                break
+            elif clean.startswith("## "):
+                title = clean[3:].strip()
+                break
+
+        # Si no hay encabezado markdown, usar las primeras palabras del prompt como título
+        if not title:
+            # Limpiar el prompt para usarlo como título
+            title = prompt.strip()[:80].split("\n")[0]
+            # Quitar palabras genéricas al inicio
+            title = re.sub(r'^(genera|redacta|crea|elabora|haz|armame|dame)\s+', '', title, flags=re.IGNORECASE).strip()
+            title = title[:80]
+
+        # Capitalizar primera letra
+        if title:
+            title = title[0].upper() + title[1:]
 
         word_count = len(content.split())
 
@@ -100,20 +290,20 @@ DOCUMENTO GENERADO:"""
             cur = conn.cursor()
             cur.execute("""
                 INSERT INTO generated_documents_v2
-                (user_id, title, prompt, content, format, 
+                (user_id, title, prompt, content, format,
                  generation_mode, source_doc_ids, model_used, word_count)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id;
             """, (
                 user_id, title, prompt, content, doc_format,
-                mode, source_doc_ids or [], 
+                mode, source_doc_ids or [],
                 self.chat_model, word_count
             ))
             gen_id = cur.fetchone()[0]
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"[ERROR] No se pudo persistir el documento generado: {e}")
+            print(f"[ERROR] No se pudo persistir: {e}")
             gen_id = None
 
         return {
@@ -123,6 +313,7 @@ DOCUMENTO GENERADO:"""
             "content": content,
             "word_count": word_count,
             "mode": mode,
+            "doc_type": doc_type,
             "used_doc_ids": used_doc_ids
         }
 

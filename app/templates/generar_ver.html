@@ -1,43 +1,70 @@
 {% extends "base.html" %}
 {% block title %}{{ doc.title }}{% endblock %}
 {% block page_title %}{{ doc.title }}{% endblock %}
-{% block page_subtitle %}Documento generado por IA · {{ doc.generation_mode.replace('_', ' ').title() }}{% endblock %}
+{% block page_subtitle %}Documento generado · {{ doc.generation_mode.replace('_', ' ').title() }}{% endblock %}
 
 {% block content %}
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-  <div style="font-size: 0.85rem; color: var(--color-text-muted);">
-    <i class="bi bi-calendar3"></i> {{ doc.created_at.strftime('%d/%m/%Y %H:%M') if doc.created_at else '' }} &nbsp;·&nbsp;
-    <i class="bi bi-file-text"></i> {{ doc.word_count }} palabras &nbsp;·&nbsp;
-    <i class="bi bi-tag"></i> {{ doc.format }}
+
+<!-- BARRA DE ACCIONES -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem;">
+  <div style="font-size: 0.82rem; color: var(--color-text-muted); display: flex; gap: 1rem; align-items: center;">
+    {% if doc.created_at %}<span><i class="bi bi-calendar3"></i> {{ doc.created_at.strftime('%d/%m/%Y %H:%M') }}</span>{% endif %}
+    <span><i class="bi bi-file-text"></i> {{ doc.word_count }} palabras</span>
+    <span><i class="bi bi-tag"></i> {{ doc.format }}</span>
   </div>
-  <div style="display: flex; gap: 0.75rem;">
+  <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
     <a href="{{ url_for('generar_descargar', gen_id=doc.id, fmt='md') }}"
-       style="padding: 0.6rem 1rem; background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-weight: 600; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
+       style="padding: 0.55rem 0.9rem; background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-weight: 600; font-size: 0.82rem; text-decoration: none;">
       <i class="bi bi-markdown"></i> .md
     </a>
     <a href="{{ url_for('generar_descargar', gen_id=doc.id, fmt='docx') }}"
-       style="padding: 0.6rem 1rem; background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-weight: 600; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
+       style="padding: 0.55rem 0.9rem; background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-weight: 600; font-size: 0.82rem; text-decoration: none;">
       <i class="bi bi-file-word"></i> .docx
     </a>
     <a href="{{ url_for('generar_descargar', gen_id=doc.id, fmt='pdf') }}"
-       style="padding: 0.6rem 1.25rem; background: var(--color-primary); color: white; border-radius: var(--radius-md); font-weight: 600; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
+       style="padding: 0.55rem 0.9rem; background: var(--color-primary); color: white; border-radius: var(--radius-md); font-weight: 600; font-size: 0.82rem; text-decoration: none;">
       <i class="bi bi-file-pdf"></i> .pdf
     </a>
     <a href="{{ url_for('generar') }}"
-       style="padding: 0.6rem 1.25rem; background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-weight: 600; font-size: 0.9rem; text-decoration: none;">
-      ← Volver
+       style="padding: 0.55rem 0.9rem; background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-weight: 600; font-size: 0.82rem; text-decoration: none;">
+      <i class="bi bi-arrow-left"></i> Volver
     </a>
   </div>
 </div>
 
 <!-- PROMPT USADO -->
-<div style="background: var(--color-primary-light); border: 1px solid var(--color-primary-border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
-  <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-primary); text-transform: uppercase; margin-bottom: 0.4rem;">Instrucciones usadas</div>
-  <div style="font-size: 0.9rem; color: var(--color-text-main);">{{ doc.prompt }}</div>
+<div style="background: var(--color-primary-light); border: 1px solid var(--color-primary-border); border-radius: var(--radius-lg); padding: 0.9rem 1.25rem; margin-bottom: 1.5rem;">
+  <div style="font-size: 0.72rem; font-weight: 700; color: var(--color-primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem;">Instrucciones usadas</div>
+  <div style="font-size: 0.88rem; color: var(--color-text-main);">{{ doc.prompt }}</div>
 </div>
 
-<!-- CONTENIDO GENERADO -->
-<div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 2rem;">
-  <pre style="white-space: pre-wrap; font-family: inherit; font-size: 0.95rem; line-height: 1.7; color: var(--color-text-main); margin: 0;">{{ doc.content }}</pre>
+<!-- CONTENIDO RENDERIZADO -->
+<div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 2.5rem 3rem;" id="doc-content">
+  <!-- El Markdown se renderiza aquí -->
 </div>
+
+<!-- Markdown raw oculto -->
+<script id="raw-content" type="text/plain">{{ doc.content | e }}</script>
+
+<!-- marked.js para renderizar Markdown -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script>
+  const raw = document.getElementById('raw-content').textContent;
+  document.getElementById('doc-content').innerHTML = marked.parse(raw);
+</script>
+
+<style>
+#doc-content h1 { font-size: 1.5rem; font-weight: 800; margin: 0 0 1.5rem; border-bottom: 2px solid var(--color-border); padding-bottom: 0.75rem; }
+#doc-content h2 { font-size: 1.15rem; font-weight: 700; margin: 2rem 0 0.75rem; color: var(--color-text-main); }
+#doc-content h3 { font-size: 1rem; font-weight: 700; margin: 1.5rem 0 0.5rem; }
+#doc-content p { line-height: 1.75; margin-bottom: 1rem; color: var(--color-text-main); }
+#doc-content ul, #doc-content ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+#doc-content li { line-height: 1.7; margin-bottom: 0.25rem; }
+#doc-content strong { font-weight: 700; }
+#doc-content hr { border: none; border-top: 1px solid var(--color-border); margin: 1.5rem 0; }
+#doc-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem; }
+#doc-content th { background: var(--color-primary-light); padding: 0.6rem 0.9rem; text-align: left; font-weight: 700; border: 1px solid var(--color-border); }
+#doc-content td { padding: 0.6rem 0.9rem; border: 1px solid var(--color-border); }
+#doc-content blockquote { border-left: 3px solid var(--color-primary); padding: 0.5rem 1rem; margin: 1rem 0; color: var(--color-text-muted); font-style: italic; }
+</style>
 {% endblock %}

@@ -4,44 +4,75 @@
 {% block page_subtitle %}Crea documentos institucionales con inteligencia artificial local{% endblock %}
 
 {% block content %}
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+<div style="display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 2rem; align-items: start;">
 
-<!-- FORMULARIO DE GENERACIÓN -->
+<!-- FORMULARIO -->
 <div>
-  <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.5rem;">
+  <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1.75rem;">
     <h3 style="margin: 0 0 1.5rem; font-size: 1rem; font-weight: 700;">Nuevo documento</h3>
-    
+
     <form action="{{ url_for('generar_crear') }}" method="POST">
-      
-      <label style="font-size: 0.8rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem;">MODO DE GENERACIÓN</label>
-      <select name="mode" id="mode-select" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 1rem; font-size: 0.95rem;" onchange="toggleDocSelect()">
-        <option value="prompt_libre">✍️ Prompt libre</option>
-        <option value="basado_repositorio">📚 Basado en repositorio</option>
-        <option value="basado_documento">📄 Basado en documento específico</option>
+
+      <!-- TIPO DE DOCUMENTO -->
+      <label style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Tipo de documento</label>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 1.25rem;">
+        {% set tipos = [
+          ('informe', 'bi-clipboard-data', 'Informe'),
+          ('acta', 'bi-journal-text', 'Acta'),
+          ('memo', 'bi-envelope-paper', 'Memorando'),
+          ('resolucion', 'bi-bank', 'Resolución'),
+          ('oficio', 'bi-send', 'Oficio'),
+          ('libre', 'bi-pen', 'Libre')
+        ] %}
+        {% for val, icon, label in tipos %}
+        <label style="cursor: pointer;">
+          <input type="radio" name="doc_type" value="{{ val }}" {% if val == 'libre' %}checked{% endif %} style="display: none;" onchange="updatePlaceholder(this.value)">
+          <div class="tipo-card" data-val="{{ val }}" style="border: 1.5px solid var(--color-border); border-radius: var(--radius-md); padding: 0.6rem 0.4rem; text-align: center; font-size: 0.8rem; transition: all 0.15s; {% if val == 'libre' %}border-color: var(--color-primary); background: var(--color-primary-light); color: var(--color-primary); font-weight: 700;{% endif %}">
+            <div style="font-size: 1.3rem;"><i class="bi {{ icon }}"></i></div>
+            <div>{{ label }}</div>
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+
+      <!-- MODO -->
+      <label style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Fuente de información</label>
+      <select name="mode" id="mode-select" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 1rem; font-size: 0.9rem;" onchange="toggleDocSelect()">
+        <option value="prompt_libre">Solo mis instrucciones</option>
+        <option value="basado_repositorio">Usando el repositorio completo</option>
+        <option value="basado_documento">Basado en un documento específico</option>
       </select>
 
       <div id="doc-select-container" style="display: none; margin-bottom: 1rem;">
-        <label style="font-size: 0.8rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem;">DOCUMENTO DE REFERENCIA</label>
-        <select name="source_doc_id" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.95rem;">
-          <option value="">-- Selecciona un documento --</option>
-          {% for doc in documentos_lista %}
-          <option value="{{ doc.id }}">{{ doc.filename }}</option>
-          {% endfor %}
+        <label style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Documento de referencia</label>
+        <select name="source_doc_id" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.9rem;">
+          <option value="">-- Selecciona una fuente --</option>
+          
+          {% if documentos_lista %}
+          <optgroup label="Documentos">
+            {% for doc in documentos_lista %}
+            <option value="{{ doc.id }}">{{ doc.filename }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+          
+          {% if web_lista %}
+          <optgroup label="Fuentes Web">
+            {% for doc in web_lista %}
+            <option value="{{ doc.id }}">{{ doc.filename }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
         </select>
       </div>
 
-      <label style="font-size: 0.8rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem;">INSTRUCCIONES</label>
-      <textarea name="prompt" rows="6" required
-        style="width: 100%; padding: 1rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.95rem; resize: vertical; margin-bottom: 1rem;"
-        placeholder="Ej: Genera un informe ejecutivo sobre los hallazgos principales del repositorio documental..."></textarea>
+      <!-- INSTRUCCIONES -->
+      <label style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Instrucciones</label>
+      <textarea name="prompt" id="prompt-textarea" rows="6" required
+        style="width: 100%; padding: 1rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.9rem; resize: vertical; margin-bottom: 1.25rem; font-family: inherit;"
+        placeholder="Ej: Genera un documento libre sobre el tema que necesites..."></textarea>
 
-      <label style="font-size: 0.8rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem;">FORMATO DE SALIDA</label>
-      <select name="formato" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 1.5rem; font-size: 0.95rem;">
-        <option value="markdown">Markdown (.md)</option>
-        <option value="txt">Texto plano (.txt)</option>
-      </select>
-
-      <button type="submit" 
+      <button type="submit"
         onclick="document.getElementById('thinking-overlay').classList.add('active'); document.getElementById('thinking-label').textContent = 'Generando documento...';"
         style="width: 100%; background: var(--color-primary); color: white; border: none; border-radius: var(--radius-md); padding: 0.875rem; font-weight: 700; font-size: 1rem; cursor: pointer;">
         <i class="bi bi-stars"></i> Generar Documento
@@ -50,29 +81,34 @@
   </div>
 </div>
 
-<!-- LISTA DE DOCUMENTOS GENERADOS -->
+<!-- LISTA DE GENERADOS -->
 <div>
-  <h3 style="margin: 0 0 1rem; font-size: 1rem; font-weight: 700;">Documentos generados ({{ generados|length }})</h3>
-  
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h3 style="margin: 0; font-size: 1rem; font-weight: 700;">Generados ({{ generados|length }})</h3>
+  </div>
+
   {% if not generados %}
-  <div style="text-align: center; padding: 3rem; color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
+  <div style="text-align: center; padding: 3rem 1.5rem; color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
     <i class="bi bi-file-earmark-plus" style="font-size: 2.5rem; display: block; margin-bottom: 1rem; opacity: 0.3;"></i>
-    <p>Aún no hay documentos generados.</p>
+    <p style="margin: 0; font-size: 0.9rem;">Aún no hay documentos generados.</p>
   </div>
   {% else %}
   {% for g in generados %}
-  <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
-    <div>
-      <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem;">{{ g.title[:60] }}{% if g.title|length > 60 %}...{% endif %}</div>
-      <div style="font-size: 0.75rem; color: var(--color-text-muted);">
-        {{ g.generation_mode.replace('_', ' ').title() }} · {{ g.word_count }} palabras · {{ g.format }}
+  <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 0.65rem;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+      <div style="min-width: 0;">
+        <div style="font-weight: 600; font-size: 0.88rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ g.title[:65] }}{% if g.title|length > 65 %}...{% endif %}</div>
+        <div style="font-size: 0.72rem; color: var(--color-text-muted);">
+          {{ g.generation_mode.replace('_', ' ').title() }} · {{ g.word_count }} palabras
+          {% if g.created_at %} · {{ g.created_at.strftime('%d/%m/%Y') }}{% endif %}
+        </div>
       </div>
-    </div>
-    <div style="display: flex; gap: 0.5rem;">
-      <a href="{{ url_for('generar_ver', gen_id=g.id) }}" style="padding: 0.4rem 0.75rem; background: var(--color-primary-light); color: var(--color-primary); border-radius: var(--radius-md); font-size: 0.8rem; font-weight: 600; text-decoration: none;">Ver</a>
-      <form action="{{ url_for('generar_eliminar', gen_id=g.id) }}" method="POST" style="display: inline;">
-        <button type="submit" style="padding: 0.4rem 0.75rem; background: var(--color-error-bg); color: var(--color-error); border: none; border-radius: var(--radius-md); font-size: 0.8rem; font-weight: 600; cursor: pointer;">Eliminar</button>
-      </form>
+      <div style="display: flex; gap: 0.4rem; flex-shrink: 0;">
+        <a href="{{ url_for('generar_ver', gen_id=g.id) }}" style="padding: 0.35rem 0.7rem; background: var(--color-primary-light); color: var(--color-primary); border-radius: var(--radius-md); font-size: 0.78rem; font-weight: 600; text-decoration: none; white-space: nowrap;"><i class="bi bi-eye"></i> Ver</a>
+        <form action="{{ url_for('generar_eliminar', gen_id=g.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('¿Eliminar este documento?')">
+          <button type="submit" style="padding: 0.35rem 0.7rem; background: var(--color-error-bg, #fee2e2); color: var(--color-error, #dc2626); border: none; border-radius: var(--radius-md); font-size: 0.78rem; font-weight: 600; cursor: pointer;"><i class="bi bi-trash"></i></button>
+        </form>
+      </div>
     </div>
   </div>
   {% endfor %}
@@ -82,10 +118,35 @@
 </div>
 
 <script>
-function toggleDocSelect() {
-    const mode = document.getElementById('mode-select').value;
-    const container = document.getElementById('doc-select-container');
-    container.style.display = mode === 'basado_documento' ? 'block' : 'none';
+const placeholders = {
+  informe: "Ej: Genera un informe técnico sobre los resultados de la evaluación del semestre académico 2024-I, incluyendo estadísticas de aprobación por facultad.",
+  acta: "Ej: Genera el acta de la reunión ordinaria N°05 del Consejo de Facultad de Ingeniería del 15 de enero de 2025. Asistentes: Decano Dr. García, docentes X, Y, Z.",
+  memo: "Ej: Redacta un memorando dirigido al Director de la Unidad de Investigación solicitando el informe de avance del proyecto de tesis 2024.",
+  resolucion: "Ej: Redacta una resolución decanal que aprueba el plan de estudios actualizado de la carrera de Ingeniería de Sistemas para el ciclo 2025-I.",
+  oficio: "Ej: Redacta un oficio dirigido al Rector solicitando la asignación de presupuesto para la adquisición de equipos de laboratorio.",
+  libre: "Ej: Genera un documento libre sobre el tema que necesites..."
+};
+
+function updatePlaceholder(val) {
+  document.getElementById('prompt-textarea').placeholder = placeholders[val] || placeholders.libre;
+  document.querySelectorAll('.tipo-card').forEach(card => {
+    const isSelected = card.dataset.val === val;
+    card.style.borderColor = isSelected ? 'var(--color-primary)' : 'var(--color-border)';
+    card.style.background = isSelected ? 'var(--color-primary-light)' : '';
+    card.style.color = isSelected ? 'var(--color-primary)' : '';
+    card.style.fontWeight = isSelected ? '700' : '';
+  });
 }
+
+function toggleDocSelect() {
+  const mode = document.getElementById('mode-select').value;
+  document.getElementById('doc-select-container').style.display =
+    mode === 'basado_documento' ? 'block' : 'none';
+}
+
+// Activar al hacer click en las cards
+document.querySelectorAll('input[name="doc_type"]').forEach(input => {
+  input.addEventListener('change', () => updatePlaceholder(input.value));
+});
 </script>
 {% endblock %}

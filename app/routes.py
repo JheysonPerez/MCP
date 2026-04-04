@@ -575,7 +575,7 @@ def web_sources():
     total = len(docs)
     active = len([d for d in docs if d.get('is_indexed')])
     updating = len([d for d in docs if d.get('processing_status') == 'pending'])
-    return render_template('web.html', web_docs=docs, total=total, active=active, updating=updating, now=datetime.now(timezone.utc))
+    return render_template('web.html', web_docs=docs, total=total, active=active, updating=updating, now=datetime.now())
 
 @app.route('/web/add', methods=['POST'])
 @login_required

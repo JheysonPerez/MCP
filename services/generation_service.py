@@ -428,12 +428,16 @@ INSTRUCCIONES DEL USUARIO:
         if not doc_data:
             raise ValueError("Documento no encontrado")
 
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf = FPDF(format='A4')
+        pdf.set_auto_page_break(auto=True, margin=20)
         pdf.add_page()
-        pdf.set_margins(20, 20, 20)
+        # A4 = 210mm ancho. Márgenes 20mm cada lado → área útil = 170mm
+        pdf.set_left_margin(20)
+        pdf.set_right_margin(20)
+        pdf.set_top_margin(20)
+        # Ancho efectivo para multi_cell
+        effective_width = 170
 
-        # Limpiar caracteres problemáticos para latin-1
         def clean(text):
             replacements = {
                 '•': '-', '–': '-', '—': '-',
@@ -441,10 +445,10 @@ INSTRUCCIONES DEL USUARIO:
                 '\u201c': '"', '\u201d': '"',
                 '°': 'o', '→': '->', '←': '<-',
                 '\u00b7': '-', '\u2022': '-',
+                '\u00ba': 'o', '\u00aa': 'a',
             }
             for char, replacement in replacements.items():
                 text = text.replace(char, replacement)
-            # Eliminar cualquier otro caracter fuera de latin-1
             return text.encode('latin-1', errors='replace').decode('latin-1')
 
         for line in doc_data["content"].split("\n"):
@@ -456,23 +460,24 @@ INSTRUCCIONES DEL USUARIO:
             if line.startswith("# "):
                 pdf.set_font("Helvetica", "B", 16)
                 pdf.set_text_color(30, 30, 30)
-                pdf.multi_cell(0, 10, clean(line[2:]))
+                pdf.multi_cell(effective_width, 10, clean(line[2:]))
                 pdf.ln(3)
             elif line.startswith("## "):
                 pdf.set_font("Helvetica", "B", 13)
                 pdf.set_text_color(50, 50, 50)
-                pdf.multi_cell(0, 8, clean(line[3:]))
+                pdf.multi_cell(effective_width, 8, clean(line[3:]))
                 pdf.ln(2)
             elif line.startswith("### "):
                 pdf.set_font("Helvetica", "B", 11)
                 pdf.set_text_color(70, 70, 70)
-                pdf.multi_cell(0, 7, clean(line[4:]))
+                pdf.multi_cell(effective_width, 7, clean(line[4:]))
+                pdf.ln(1)
             elif re.match(r'^[-*•]\s+', line):
                 pdf.set_font("Helvetica", "", 11)
                 pdf.set_text_color(40, 40, 40)
                 content_line = re.sub(r'^[-*•]\s+', '', line)
                 content_line = re.sub(r'\*\*(.*?)\*\*', r'\1', content_line)
-                pdf.multi_cell(0, 6, clean(f"  - {content_line}"))
+                pdf.multi_cell(effective_width, 6, clean(f"  - {content_line}"))
             elif line.startswith("---"):
                 pdf.ln(2)
                 pdf.set_draw_color(200, 200, 200)
@@ -483,6 +488,6 @@ INSTRUCCIONES DEL USUARIO:
                 pdf.set_text_color(40, 40, 40)
                 clean_line = re.sub(r'\*\*(.*?)\*\*', r'\1', line)
                 clean_line = re.sub(r'\*(.*?)\*', r'\1', clean_line)
-                pdf.multi_cell(0, 6, clean(clean_line))
+                pdf.multi_cell(effective_width, 6, clean(clean_line))
 
         return bytes(pdf.output())

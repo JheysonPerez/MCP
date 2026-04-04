@@ -4,6 +4,8 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash
 from pathlib import Path
 import os
+import re
+from datetime import datetime
 
 from .decorators import login_required, admin_required
 
@@ -540,3 +542,120 @@ def api_delete_user(user_id):
                        'deactivated': result.get('deactivated', False)})
     else:
         return jsonify({'success': False, 'error': result['error']}), 400
+
+
+# --- GESTIÓN DE FUENTES WEB ---
+
+@app.route('/web')
+@login_required
+def web_sources():
+    docs = app.db_conn.execute_query("""
+        SELECT * FROM documents WHERE source_type = 'web' ORDER BY created_at DESC;
+    """, fetch=True)
+    total = len(docs)
+    active = len([d for d in docs if d.get('is_indexed')])
+    updating = len([d for d in docs if d.get('processing_status') == 'pending'])
+    return render_template('web.html', web_docs=docs, total=total, active=active, updating=updating, now=datetime.now())
+
+@app.route('/web/add', methods=['POST'])
+@login_required
+def web_add():
+    url = request.form.get('url', '').strip()
+    auto_refresh = request.form.get('auto_refresh') == 'on'
+    frequency = request.form.get('frequency', 'manual')
+    
+    scraper = app.web_scraper_service
+    
+    if not scraper.is_valid_url(url):
+        flash('URL inválida. Asegúrate de incluir http:// o https://', 'error')
+        return redirect(url_for('web_sources'))
+    
+    try:
+        result = scraper.scrape_url(url)
+        if not result['success']:
+            flash(f'Error al extraer: {result["error"]}', 'error')
+            return redirect(url_for('web_sources'))
+        
+        # Guardar como archivo .txt procesado
+        import uuid, os
+        safe_name = re.sub(r'[^a-z0-9]', '_', url.lower())[:40]
+        filename = f"web_{safe_name}.txt"
+        safe_uuid = uuid.uuid4().hex[:8]
+        processed_name = f"{safe_uuid}_{filename}"
+        processed_path = os.path.join("data/processed", processed_name)
+        
+        os.makedirs("data/processed", exist_ok=True)
+        with open(processed_path, 'w', encoding='utf-8') as f:
+            f.write(result['content'])
+        
+        # Registrar en DB
+        user_id = app.persistence.create_or_get_user(
+            session.get('username'), session.get('username') + '@local'
+        )
+        doc_id = app.persistence.register_document(
+            filename=result['title'][:100],
+            original_path=url,
+            processed_path=os.path.abspath(processed_path),
+            user_id=user_id
+        )
+        app.persistence.update_document_status(
+            doc_id,
+            processing_status='completed',
+            processed_path=os.path.abspath(processed_path)
+        )
+        
+        # Actualizar campos web
+        conn = app.db_conn.get_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE documents SET source_url=%s, source_type='web',
+                auto_refresh=%s, refresh_frequency=%s, last_scraped_at=NOW()
+                WHERE id=%s
+            """, (url, auto_refresh, frequency, doc_id))
+        conn.commit()
+        conn.close()
+        
+        # Indexar
+        app.rag_service.index_document(doc_id, os.path.abspath(processed_path))
+        flash(f'"{result["title"]}" indexado correctamente ({result["word_count"]} palabras)', 'success')
+        
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+    
+    return redirect(url_for('web_sources'))
+
+@app.route('/web/delete/<int:doc_id>', methods=['POST'])
+@login_required
+def web_delete(doc_id):
+    app.rag_service.delete_document(doc_id)
+    flash('Fuente web eliminada', 'success')
+    return redirect(url_for('web_sources'))
+
+@app.route('/web/refresh/<int:doc_id>', methods=['POST'])
+@login_required
+def web_refresh(doc_id):
+    doc = app.persistence.get_document_by_id(doc_id)
+    if not doc or not doc.get('source_url'):
+        flash('No se encontró la URL original', 'error')
+        return redirect(url_for('web_sources'))
+    
+    scraper = app.web_scraper_service
+    result = scraper.scrape_url(doc['source_url'])
+    
+    if result['success']:
+        with open(doc['processed_path'], 'w', encoding='utf-8') as f:
+            f.write(result['content'])
+        app.rag_service.reindex_document(doc_id)
+        
+        # Actualizar last_scraped_at
+        conn = app.db_conn.get_connection()
+        with conn.cursor() as cur:
+            cur.execute("UPDATE documents SET last_scraped_at=NOW() WHERE id=%s", (doc_id,))
+        conn.commit()
+        conn.close()
+        
+        flash('Fuente actualizada y re-indexada', 'success')
+    else:
+        flash(f'Error al actualizar: {result["error"]}', 'error')
+    
+    return redirect(url_for('web_sources'))

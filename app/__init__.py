@@ -18,6 +18,8 @@ from services.hybrid_search_service import HybridSearchService
 
 load_dotenv()
 
+from services.web_scraper_service import WebScraperService
+
 def create_app():
     # Inicializar la aplicación Flask señalando a esta ruta para buscar static y templates
     app = Flask(__name__)
@@ -53,6 +55,9 @@ def create_app():
     )
     
     user_service = UserService(db_connection=db_conn)
+    
+    # Web Scraper Service
+    web_scraper_service = WebScraperService()
 
     # Inyección de dependencias en el contexto global de app para poder consumirlos en app/routes.py
     app.db_conn = db_conn
@@ -65,6 +70,7 @@ def create_app():
     app.rag_service = rag_service
     app.generation_service = generation_service
     app.user_service = user_service
+    app.web_scraper_service = web_scraper_service
 
     # Registrar Rutas
     with app.app_context():

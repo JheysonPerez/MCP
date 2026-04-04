@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Fuentes Web{% endblock %}
+{% block page_title %}Fuentes Web{% endblock %}
+{% block page_subtitle %}Extrae y consulta contenido de páginas web{% endblock %}
+
+{% block content %}
+
+<!-- STATS CARDS -->
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+    <div class="card" style="background: #f9fafb;">
+        <div class="stat-card">
+            <div style="flex: 1;">
+                <span class="stat-label">URLs indexadas</span>
+                <span class="stat-value">{{ total }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="card" style="background: #f9fafb;">
+        <div class="stat-card">
+            <div style="flex: 1;">
+                <span class="stat-label">Activas</span>
+                <span class="stat-value">{{ active }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="card" style="background: #f9fafb;">
+        <div class="stat-card">
+            <div style="flex: 1;">
+                <span class="stat-label">Actualizando</span>
+                <span class="stat-value">{{ updating }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AGREGAR URL CARD -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 0.4rem;">
+        <i class="bi bi-globe2" style="color: #1d4ed8;"></i> Agregar nueva URL
+    </h5>
+    <form action="{{ url_for('web_add') }}" method="POST">
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+            <input type="url" name="url" placeholder="https://ejemplo.com/pagina" required
+                style="flex: 1; padding: 0.85rem 1rem; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 1rem; height: 48px; width: 85%;">
+            <button type="submit"
+                style="background: #1d4ed8; color: #fff; border: none; border-radius: 7px; padding: 0 0.75rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.3rem; transition: background 0.15s; white-space: nowrap; height: 48px; width: 15%; min-width: 100px;">
+                <i class="bi bi-download"></i> Extraer
+            </button>
+        </div>
+        <p style="margin: 0; font-size: 0.75rem; color: #6b7280;">
+            El contenido se extrae, indexa y queda disponible para consultas inmediatamente.
+        </p>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 1rem 0;">
+        
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <label for="auto_refresh" style="font-size: 0.85rem; font-weight: 500; color: #374151;">Actualización automática</label>
+                <span style="font-size: 0.75rem; color: #6b7280;">Re-indexar si el contenido cambia</span>
+            </div>
+            <label style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                <input type="checkbox" id="auto_refresh" name="auto_refresh" style="opacity: 0; width: 0; height: 0;">
+                <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e5e7eb; transition: .3s; border-radius: 24px;"></span>
+                <span style="position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;"></span>
+            </label>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.75rem;">
+            <label for="frequency" style="font-size: 0.85rem; color: #374151; width: 120px;">Frecuencia</label>
+            <select name="frequency" id="frequency" style="flex: 1; max-width: 200px; padding: 0.4rem 0.6rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem; background: #fff;">
+                <option value="diario">Diario</option>
+                <option value="semanal">Semanal</option>
+                <option value="mensual">Mensual</option>
+            </select>
+        </div>
+    </form>
+</div>
+
+<!-- LISTADO URLs -->
+<div class="card">
+    <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 0.4rem;">
+        <i class="bi bi-list-ul" style="color: #1d4ed8;"></i> URLs indexadas
+    </h5>
+    
+    {% if web_docs %}
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        {% for doc in web_docs %}
+        <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 1rem; display: flex; align-items: center; gap: 1rem; background: #fff;">
+            <!-- Icono globo -->
+            <div style="width: 40px; height: 40px; background: #eff6ff; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <i class="bi bi-globe2" style="color: #1d4ed8; font-size: 1.2rem;"></i>
+            </div>
+            
+            <!-- Info -->
+            <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 600; color: #111827; font-size: 0.9rem; margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    {{ doc.filename or 'Sin título' }}
+                </div>
+                <div style="font-size: 0.75rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    {{ doc.source_url or doc.original_path }}
+                </div>
+            </div>
+            
+            <!-- Estado -->
+            <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #6b7280; white-space: nowrap;">
+                {% if doc.is_indexed %}
+                    <span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; display: inline-block;"></span>
+                    hace {{ ((doc.last_scraped_at or doc.updated_at) - now).days|abs }}d
+                {% elif doc.processing_status == 'pending' %}
+                    <span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: inline-block;"></span>
+                    indexando...
+                {% else %}
+                    <span style="width: 8px; height: 8px; background: #ef4444; border-radius: 50%; display: inline-block;"></span>
+                    error
+                {% endif %}
+            </div>
+            
+            <!-- Acciones -->
+            <div style="display: flex; gap: 0.4rem; flex-shrink: 0;">
+                <form action="{{ url_for('web_refresh', doc_id=doc.id) }}" method="POST" style="display: inline;">
+                    <button type="submit" title="Actualizar"
+                        style="background: #fff; color: #6b7280; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </form>
+                <a href="{{ url_for('consultar', doc_id=doc.id) }}" title="Consultar"
+                    style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 0 0.75rem; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.75rem; font-weight: 500; gap: 0.3rem; transition: all 0.2s;">
+                    <i class="bi bi-chat-left-text"></i> Consultar
+                </a>
+                <form action="{{ url_for('web_delete', doc_id=doc.id) }}" method="POST" style="display: inline;"
+                      onsubmit="return confirm('¿Eliminar esta fuente web?');">
+                    <button type="submit" title="Eliminar"
+                        style="background: #fff; color: #dc2626; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 3rem 1rem; color: #9ca3af;">
+        <i class="bi bi-globe2" style="font-size: 3rem; display: block; margin-bottom: 1rem;"></i>
+        <p style="margin: 0; font-size: 0.9rem;">No hay URLs indexadas aún</p>
+        <p style="margin: 0.5rem 0 0; font-size: 0.75rem;">Agrega tu primera fuente web arriba</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Toggle switch styling
+document.getElementById('auto_refresh').addEventListener('change', function() {
+    const spans = this.parentElement.querySelectorAll('span');
+    if (this.checked) {
+        spans[0].style.backgroundColor = '#1d4ed8';
+        spans[1].style.transform = 'translateX(20px)';
+    } else {
+        spans[0].style.backgroundColor = '#e5e7eb';
+        spans[1].style.transform = 'translateX(0)';
+    }
+});
+</script>
+
+{% endblock %}

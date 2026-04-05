@@ -848,6 +848,7 @@ def academico_chat():
     # Scraping en tiempo real
     try:
         academic_context = app.academico_service.query_realtime(user_message, cookies)
+        print(f"[ACAD CONTEXT] len={len(academic_context)} preview={academic_context[:300]}")
     except Exception as e:
         print(f"[ACAD scrape error]: {e}")
         academic_context = ""
@@ -875,7 +876,9 @@ def academico_chat():
             "- Usa tablas Markdown para horarios y notas\n"
             "- Usa **negrita** para códigos de curso y datos importantes\n"
             "- Si un valor es 0 o vacío escribe 'Sin registro aún'\n"
-            "- Solo usa la información provista, no inventes datos\n\n"
+            "- Solo usa la información provista, no inventes datos\n"
+            "- Para orden de mérito: indica el puesto del estudiante, "
+            "el total de alumnos y sus promedios. No listes todos los compañeros.\n\n"
             f"=== DATOS ACADÉMICOS EN TIEMPO REAL — UNAS {codsem} ===\n"
             f"{academic_context}\n"
             "=== FIN DE DATOS ==="

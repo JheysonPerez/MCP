@@ -222,6 +222,7 @@ class AcademicoService:
                 },
                 timeout=10
             )
+            resp.encoding = 'latin-1'  # UNAS envía Latin-1
             soup = BeautifulSoup(resp.text, "html.parser")
             sem = soup.find(id="semactivo")
             return sem.text.strip() if sem else "2026-1"
@@ -250,6 +251,8 @@ class AcademicoService:
             )
             if resp.status_code != 200:
                 return ""
+            
+            resp.encoding = 'utf-8'  # Forzar UTF-8 explícitamente
 
             soup = BeautifulSoup(resp.text, "html.parser")
             
@@ -265,9 +268,12 @@ class AcademicoService:
             elif "DebtReport" in controller:
                 return self._parse_deudas(soup, codsem)
             elif "OrderOfMerit" in controller:
-                return self._parse_generic(soup, codsem, "Orden de Mérito")
+                result = self._parse_orden_merito(soup, codsem)
             else:
-                return self._parse_generic(soup, codsem, "")
+                result = self._parse_generic(soup, codsem, "")
+            
+            print(f"[SCRAPE] controller={controller} codsem={codsem} status={resp.status_code} len={len(resp.text)} content_len={len(result)}")
+            return result
 
         except Exception as e:
             print(f"[SCRAPE ERROR] {controller}: {e}")
@@ -417,25 +423,39 @@ class AcademicoService:
         return "\n".join(lines)
 
     def _parse_cursos(self, soup, codsem: str) -> str:
-        """Parser para cursos matriculados."""
-        lines = [f"# Cursos Matriculados — Semestre {codsem}\n"]
+        """
+        Parser para cursos matriculados — estructura de cards en UNAS.
+        Cada curso es un div.card con código, nombre y créditos.
+        """
+        lines = [f"# Cursos Matriculados — {codsem}\n"]
         
-        table = soup.find("table")
-        if not table:
-            return "\n".join(lines) + "Sin datos."
+        cards = soup.find_all("div", class_="card")
         
-        thead = table.find("thead")
-        if thead:
-            headers = [self._get_cell_text(th) for th in thead.find_all("th")]
-            lines.append("| " + " | ".join(h for h in headers if h) + " |")
-            lines.append("|" + "|".join(["---"] * len([h for h in headers if h])) + "|")
+        if not cards:
+            return "\n".join(lines) + "Sin cursos matriculados."
         
-        tbody = table.find("tbody")
-        if tbody:
-            for tr in tbody.find_all("tr"):
-                cells = [self._get_cell_text(td) for td in tr.find_all(["td","th"])]
-                if any(c for c in cells if c):
-                    lines.append("| " + " | ".join(cells) + " |")
+        lines.append(f"**Total: {len(cards)} cursos**\n")
+        lines.append("| Código | Curso | Créditos |")
+        lines.append("|--------|-------|----------|")
+        
+        for card in cards:
+            body = card.find("div", class_="card-body")
+            if not body:
+                continue
+            
+            # Código
+            codigo_el = body.find("span", class_="font-weight-bold")
+            codigo = codigo_el.get_text(strip=True) if codigo_el else "—"
+            
+            # Créditos
+            creditos_el = body.find("span", class_="float-right")
+            creditos = creditos_el.get_text(strip=True) if creditos_el else "—"
+            
+            # Nombre
+            nombre_el = body.find("h4", class_="card-title")
+            nombre = nombre_el.get_text(strip=True) if nombre_el else "—"
+            
+            lines.append(f"| **{codigo}** | {nombre} | {creditos} |")
         
         return "\n".join(lines)
 
@@ -528,6 +548,69 @@ class AcademicoService:
         
         return "\n".join(lines)
 
+    def _parse_orden_merito(self, soup, codsem: str) -> str:
+        """
+        Parser específico para Orden de Mérito.
+        Solo envía la información del estudiante, no los 43 alumnos completos.
+        """
+        lines = [f"# Orden de Mérito — {codsem}\n"]
+        
+        table = soup.find("table")
+        if not table:
+            return "\n".join(lines) + "Sin datos."
+        
+        thead = table.find("thead")
+        headers = []
+        if thead:
+            headers = [th.get_text(strip=True) for th in thead.find_all("th")]
+        
+        tbody = table.find("tbody")
+        if not tbody:
+            return "\n".join(lines) + "Sin datos."
+        
+        rows = tbody.find_all("tr")
+        total = len(rows)
+        student_row = None
+        student_puesto = None
+        
+        for tr in rows:
+            cells = [td.get_text(strip=True) for td in tr.find_all("td")]
+            if not any(cells):
+                continue
+            row_text = " ".join(cells)
+            # Detectar fila del estudiante — no tiene XXXXX
+            if "XXXXX" not in row_text and "XXXXXXX" not in row_text:
+                student_row = cells
+                student_puesto = cells[0] if cells else "?"
+        
+        # Construir resumen compacto — solo info del estudiante
+        if student_row and len(student_row) >= 4:
+            nombre = student_row[2] if len(student_row) > 2 else "—"
+            semestre = student_row[3] if len(student_row) > 3 else codsem
+            ppa = student_row[-1] if student_row else "—"  # Promedio Ponderado Acumulado
+            
+            lines.append(f"**Estudiante:** {nombre}")
+            lines.append(f"**Posición:** #{student_puesto} de {total} estudiantes")
+            lines.append(f"**Semestre:** {semestre}")
+            lines.append(f"**Promedio Ponderado Acumulado (PPA):** {ppa}")
+            lines.append("")
+            
+            # Tabla solo con la fila del estudiante
+            if headers:
+                lines.append("| " + " | ".join(headers) + " |")
+                lines.append("|" + "|".join(["---"] * len(headers)) + "|")
+                lines.append("| " + " | ".join(student_row) + " |")
+        else:
+            lines.append(f"**Total estudiantes:** {total}")
+            lines.append("No se encontró tu fila en el ranking.")
+        
+        # Nota
+        nota = soup.find(string=lambda t: t and "Nro. de alumnos" in str(t))
+        if nota:
+            lines.append(f"\n*{str(nota).strip()}*")
+        
+        return "\n".join(lines)
+
     def _parse_generic(self, soup, codsem: str, titulo: str) -> str:
         """Parser genérico para cualquier sección."""
         h2 = soup.find("h2")
@@ -568,11 +651,15 @@ class AcademicoService:
         elif any(w in q for w in ["matrícula", "matricula", "matriculado", "cursos matriculados"]):
             controllers = ["StudentEnrolledCoursesController@index"]
         elif any(w in q for w in ["orden", "mérito", "merito", "ranking", "puesto"]):
-            controllers = ["StudenOrderOfMeritController@index"]
+            # Para orden de mérito, enviar solo resumen + fila del estudiante
+            # El parser ya lo limita a 4000 chars
+            content = self._scrape_section("StudenOrderOfMeritController@index", cookies, codsem)
+            return content
         elif any(w in q for w in ["sílabo", "silabo", "syllabus"]):
             controllers = ["StudentSyllabusController@index"]
-        elif any(w in q for w in ["curso", "disponible", "activado"]):
-            controllers = ["StudentActivatedCoursesController@index"]
+        elif any(w in q for w in ["curso", "llevo", "llevando", "matriculado",
+                           "matrícula", "matricula", "inscrito", "asignatura", "ciclo"]):
+            controllers = ["StudentEnrolledCoursesController@index"]
         else:
             controllers = ["StudentQualificationsController@index",
                            "StudentEnrolledCoursesController@index"]

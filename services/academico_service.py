@@ -260,8 +260,10 @@ class AcademicoService:
                 return self._parse_horario(soup, codsem)
             elif "Enrollment" in controller or "EnrolledCourses" in controller:
                 return self._parse_cursos(soup, codsem)
-            elif "Payment" in controller or "Debt" in controller or "Tuition" in controller:
+            elif "PaymentReport" in controller:
                 return self._parse_pagos(soup, codsem)
+            elif "DebtReport" in controller:
+                return self._parse_deudas(soup, codsem)
             elif "OrderOfMerit" in controller:
                 return self._parse_generic(soup, codsem, "Orden de Mérito")
             else:
@@ -365,41 +367,52 @@ class AcademicoService:
         return "\n".join(lines)
 
     def _parse_horario(self, soup, codsem: str) -> str:
-        """Parser específico para horario — genera tabla Markdown."""
-        lines = [f"# Horario de Clases — Semestre {codsem}\n"]
+        """
+        Parser específico para horario — estructura real UNAS.
+        Cada celda tiene <div class="horbox"> con:
+        <strong>CÓDIGO</strong><br>
+        NOMBRE CURSO<br>DOCENTE<br>AULA
+        """
+        lines = [f"# Horario de Clases — {codsem}\n"]
         
-        table = soup.find("table")
+        dias = ["Hora", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"]
+        
+        # Recopilar clases por día para presentación más legible
+        clases_por_dia = {d: [] for d in dias[1:]}
+        
+        table = soup.find("table", {"id": "tblSchedule"}) or soup.find("table")
         if not table:
-            return f"# Horario {codsem}\nSin datos disponibles."
+            return "\n".join(lines) + "Sin datos."
         
-        # Encabezados (días)
-        thead = table.find("thead")
-        if thead:
-            headers = [self._get_cell_text(th) for th in thead.find_all("th")]
-            lines.append("| " + " | ".join(headers) + " |")
-            lines.append("|" + "|".join(["---"] * len(headers)) + "|")
+        for tr in table.find_all("tr"):
+            hora_th = tr.find("th")
+            hora = hora_th.get_text(strip=True) if hora_th else ""
+            if not hora:
+                continue
+            
+            tds = tr.find_all("td")
+            for i, td in enumerate(tds):
+                horbox = td.find("div", class_="horbox")
+                if horbox and i < len(dias)-1:
+                    dia = dias[i+1]
+                    strong = horbox.find("strong")
+                    codigo = strong.get_text(strip=True) if strong else ""
+                    # Texto restante después del código
+                    partes = [t.strip() for t in horbox.get_text(separator="|").split("|") if t.strip()]
+                    nombre = partes[1] if len(partes) > 1 else ""
+                    docente = partes[2] if len(partes) > 2 else ""
+                    aula = partes[3] if len(partes) > 3 else ""
+                    clases_por_dia[dia].append(f"{hora}: **{codigo}** {nombre} — {docente} ({aula})")
         
-        # Filas por hora
-        tbody = table.find("tbody")
-        if tbody:
-            for tr in tbody.find_all("tr"):
-                cells = []
-                for td in tr.find_all(["td","th"]):
-                    # Dentro de cada celda del horario hay divs con curso/docente/aula
-                    inner_divs = td.find_all("div", recursive=False)
-                    if inner_divs:
-                        # Extraer texto de cada div interno
-                        parts = []
-                        for div in inner_divs:
-                            t = div.get_text(separator=" ", strip=True)
-                            if t:
-                                parts.append(t)
-                        cells.append("<br>".join(parts) if parts else "")
-                    else:
-                        cells.append(self._get_cell_text(td))
-                
-                if cells:
-                    lines.append("| " + " | ".join(cells) + " |")
+        # Presentar por día
+        for dia, clases in clases_por_dia.items():
+            if clases:
+                lines.append(f"\n## {dia}")
+                for c in clases:
+                    lines.append(f"- {c}")
+        
+        if all(len(v) == 0 for v in clases_por_dia.values()):
+            lines.append("Sin clases registradas.")
         
         return "\n".join(lines)
 
@@ -427,26 +440,91 @@ class AcademicoService:
         return "\n".join(lines)
 
     def _parse_pagos(self, soup, codsem: str) -> str:
-        """Parser para pagos y deudas."""
-        h2 = soup.find("h2")
-        titulo = h2.get_text(strip=True) if h2 else "Estado de Pagos"
-        lines = [f"# {titulo} — Semestre {codsem}\n"]
+        """
+        Parser para reporte de pagos.
+        Estructura: tabla con columnas Estado | Origen | Fecha/Hora | N° Movimiento | 
+        Detalle | Cod Partida | Cantidad | Precio | Importe.
+        Los iconos de estado son <i class="fa-check-circle text-success"> o similar.
+        """
+        lines = [f"# Reporte de Pagos — {codsem}\n"]
         
-        for table in soup.find_all("table"):
-            thead = table.find("thead")
-            if thead:
-                headers = [self._get_cell_text(th) for th in thead.find_all("th")]
-                if any(headers):
-                    lines.append("| " + " | ".join(h for h in headers if h) + " |")
-                    lines.append("|" + "|".join(["---"] * len([h for h in headers if h])) + "|")
-            
-            tbody = table.find("tbody")
-            if tbody:
-                for tr in tbody.find_all("tr"):
-                    cells = [self._get_cell_text(td) for td in tr.find_all(["td","th"])]
-                    if any(c for c in cells if c):
-                        lines.append("| " + " | ".join(cells) + " |")
+        table = soup.find("table")
+        if not table:
+            return "\n".join(lines) + "Sin pagos registrados."
+        
+        # Headers
+        thead = table.find("thead")
+        if thead:
+            headers = [th.get_text(strip=True) for th in thead.find_all("th")]
+            # Filtrar headers vacíos
+            headers = [h for h in headers if h]
+            lines.append("| " + " | ".join(headers) + " |")
+            lines.append("|" + "|".join(["---"] * len(headers)) + "|")
+        
+        tbody = table.find("tbody")
+        if tbody:
+            for tr in tbody.find_all("tr"):
+                cells = []
+                for td in tr.find_all("td"):
+                    # Detectar iconos de estado
+                    icon = td.find("i")
+                    if icon:
+                        cls = icon.get("class", [])
+                        cls_str = " ".join(cls)
+                        if "text-success" in cls_str or "fa-check" in cls_str:
+                            cells.append("✅ Pagado")
+                        elif "text-danger" in cls_str:
+                            cells.append("❌ Pendiente")
+                        elif "fa-cc-visa" in cls_str or "visa" in cls_str.lower():
+                            cells.append("💳 Visa")
+                        elif "fa-money" in cls_str or "cash" in cls_str.lower():
+                            cells.append("💵 Efectivo")
+                        else:
+                            cells.append(td.get_text(strip=True))
+                    else:
+                        cells.append(td.get_text(strip=True))
+                if any(c for c in cells if c):
+                    lines.append("| " + " | ".join(cells) + " |")
+        
+        return "\n".join(lines)
+
+    def _parse_deudas(self, soup, codsem: str) -> str:
+        """
+        Parser para reporte de deudas.
+        Estructura: tabla Fecha | Codigo | Detalle | Deuda | Pagado | Saldo
+        con tfoot que tiene resumen y Total Deuda.
+        """
+        lines = [f"# Reporte de Deudas — {codsem}\n"]
+        
+        table = soup.find("table")
+        if not table:
+            return "\n".join(lines) + "Sin deudas registradas."
+        
+        thead = table.find("thead")
+        if thead:
+            headers = [th.get_text(strip=True) for th in thead.find_all("th")]
+            lines.append("| " + " | ".join(headers) + " |")
+            lines.append("|" + "|".join(["---"] * len(headers)) + "|")
+        
+        tbody = table.find("tbody")
+        if tbody:
+            rows = tbody.find_all("tr")
+            if not rows:
+                lines.append("| — | — | Sin deudas pendientes | — | — | **0** |")
+            for tr in rows:
+                cells = [td.get_text(strip=True) for td in tr.find_all("td")]
+                if any(c for c in cells if c):
+                    lines.append("| " + " | ".join(cells) + " |")
+        
+        # Totales del tfoot
+        tfoot = table.find("tfoot")
+        if tfoot:
             lines.append("")
+            for tr in tfoot.find_all("tr"):
+                cells = [td.get_text(strip=True) for td in tr.find_all("td")]
+                txt = " | ".join(c for c in cells if c)
+                if txt:
+                    lines.append(f"**{txt}**")
         
         return "\n".join(lines)
 
@@ -485,7 +563,7 @@ class AcademicoService:
             controllers = ["StudentScheduleController@index"]
         elif any(w in q for w in ["pago", "pagar", "pagué"]):
             controllers = ["StudentPaymentReportController@index"]
-        elif any(w in q for w in ["deuda", "debo", "debe", "monto"]):
+        elif any(w in q for w in ["deuda", "debo", "debe", "monto", "saldo"]):
             controllers = ["StudentDebtReportController@index"]
         elif any(w in q for w in ["matrícula", "matricula", "matriculado", "cursos matriculados"]):
             controllers = ["StudentEnrolledCoursesController@index"]

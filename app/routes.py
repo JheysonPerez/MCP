@@ -659,9 +659,18 @@ def web_add():
 @app.route('/web/delete/<int:doc_id>', methods=['POST'])
 @login_required
 def web_delete(doc_id):
-    app.rag_service.delete_document(doc_id)
-    flash('Fuente web eliminada', 'success')
-    return redirect(url_for('web_sources'))
+    try:
+        app.rag_service.delete_document(doc_id)
+        # Si es una petición AJAX/fetch, devolver JSON
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': True, 'message': 'Fuente web eliminada'})
+        flash('Fuente web eliminada', 'success')
+        return redirect(url_for('web_sources'))
+    except Exception as e:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
+        flash(f'Error al eliminar: {str(e)}', 'error')
+        return redirect(url_for('web_sources'))
 
 @app.route('/web/refresh/<int:doc_id>', methods=['POST'])
 @login_required

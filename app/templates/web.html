@@ -163,7 +163,7 @@ function deleteWebSource(docId) {
         'Eliminar fuente web',
         '¿Eliminar esta fuente web? Esta acción no se puede deshacer.',
         () => {
-            fetch(`/web/eliminar/${docId}`, { method: 'POST' })
+            fetch(`/web/delete/${docId}`, { method: 'POST' })
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {

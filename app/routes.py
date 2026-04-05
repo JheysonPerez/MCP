@@ -574,6 +574,13 @@ def web_sources():
     docs = app.db_conn.execute_query("""
         SELECT * FROM documents WHERE source_type = 'web' ORDER BY created_at DESC;
     """, fetch=True)
+    
+    # Normalizar todas las fechas a naive UTC para evitar mismatch con datetime.now()
+    for doc in docs:
+        for field in ['last_scraped_at', 'updated_at', 'created_at']:
+            if doc.get(field) and hasattr(doc[field], 'tzinfo') and doc[field].tzinfo is not None:
+                doc[field] = doc[field].replace(tzinfo=None)
+    
     total = len(docs)
     active = len([d for d in docs if d.get('is_indexed')])
     updating = len([d for d in docs if d.get('processing_status') == 'pending'])

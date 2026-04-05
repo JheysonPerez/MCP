@@ -92,6 +92,10 @@
                                style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-decoration: none; transition: all 0.2s;">
                                 <i class="bi bi-chat-left-text"></i>
                             </a>
+                            <a href="{{ url_for('download_document', doc_id=doc.id) }}" title="Descargar original" 
+                               style="background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-decoration: none; transition: all 0.2s;">
+                                <i class="bi bi-download"></i>
+                            </a>
                             {% if session.get('user_role') == 'admin' %}
                             <form action="{{ url_for('reindex_document', doc_id=doc.id) }}" method="POST" style="display: inline;">
                                 <button type="submit" title="Reindexar" 

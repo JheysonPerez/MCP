@@ -86,6 +86,11 @@
         color: #dc2626;
     }
     
+    .btn-download {
+        background: #dcfce7;
+        color: #166534;
+    }
+    
     .btn-sm:disabled {
         opacity: 0.5;
         cursor: not-allowed;
@@ -137,6 +142,9 @@
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
                 {% endif %}
+                <a href="{{ url_for('admin_download_document', doc_id=doc.id) }}" class="btn-sm btn-download" title="Descargar original">
+                    <i class="bi bi-download"></i>
+                </a>
                 <button class="btn-sm btn-delete-doc" onclick="deleteDoc({{ doc.id }}, '{{ doc.filename }}')" title="Eliminar">
                     <i class="bi bi-trash"></i>
                 </button>

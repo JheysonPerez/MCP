@@ -32,7 +32,13 @@ def create_app():
     db_conn = DatabaseConnection()
     persistence = PersistenceService(db=db_conn)
     
-    document_service = DocumentService(persistence_service=persistence)
+    # Paths absolutos para uploads y processed (relativo al proyecto root, no al directorio de trabajo)
+    base_dir = Path(__file__).parent.parent  # app/__init__.py -> proyecto root
+    document_service = DocumentService(
+        upload_dir=str(base_dir / "data" / "uploads"),
+        processed_dir=str(base_dir / "data" / "processed"),
+        persistence_service=persistence
+    )
     chunk_service = ChunkService(chunk_size=800, overlap=100)
     embedding_service = EmbeddingService()
     

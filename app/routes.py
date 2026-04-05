@@ -147,6 +147,39 @@ def delete_document(doc_id):
     return redirect(url_for("documentos"))
 
 
+@app.route("/documentos/<int:doc_id>/download")
+@login_required
+def download_document(doc_id):
+    """Descargar el archivo original de un documento (para usuarios regulares)."""
+    doc = app.persistence.get_document_by_id(doc_id)
+    
+    if not doc:
+        flash("Documento no encontrado.", "error")
+        return redirect(url_for("documentos"))
+    
+    filename = doc.get("filename")
+    
+    # SIEMPRE buscar en data/uploads/ - ignorar el original_path de la BD
+    base_dir = Path(__file__).parent.parent
+    correct_path = base_dir / "data" / "uploads" / filename
+    
+    print(f"[DOWNLOAD] doc_id={doc_id}, filename={filename}")
+    print(f"[DOWNLOAD] Buscando en: {correct_path}")
+    
+    if correct_path.exists():
+        print(f"[DOWNLOAD] Archivo encontrado")
+        from flask import send_file
+        return send_file(
+            str(correct_path),
+            as_attachment=True,
+            download_name=filename
+        )
+    
+    print(f"[DOWNLOAD] ERROR: Archivo no existe en {correct_path}")
+    flash("Archivo original no encontrado.", "error")
+    return redirect(url_for("documentos"))
+
+
 # --- CONSULTA RAG ---
 
 @app.route("/consultar", methods=["GET", "POST"])
@@ -445,6 +478,24 @@ def generar_eliminar(gen_id):
 
 # --- ADMIN: GESTIÓN DE USUARIOS ---
 
+@app.route("/admin/dashboard", methods=["GET"])
+@admin_required
+def admin_dashboard():
+    """Página de dashboard de administración."""
+    stats = _get_stats()
+    # Estadísticas adicionales de admin
+    try:
+        user_count = app.db_conn.execute_query("SELECT COUNT(*) as total FROM users;", fetch=True)
+        stats["total_users"] = user_count[0]["total"] if user_count else 0
+    except:
+        stats["total_users"] = 0
+    
+    return render_template("admin/dashboard.html", 
+                          stats=stats, 
+                          username=session.get("username"),
+                          user_role=session.get("user_role"))
+
+
 @app.route("/admin/usuarios", methods=["GET"])
 @admin_required
 def admin_usuarios():
@@ -564,6 +615,85 @@ def api_delete_user(user_id):
                        'deactivated': result.get('deactivated', False)})
     else:
         return jsonify({'success': False, 'error': result['error']}), 400
+
+
+# --- ADMIN: GESTIÓN DE DOCUMENTOS ---
+
+@app.route("/admin/documentos", methods=["GET"])
+@admin_required
+def admin_documentos():
+    """Página de administración de documentos."""
+    docs = app.db_conn.execute_query("""
+        SELECT id, filename, created_at, processing_status, is_indexed, chunk_count, original_path
+        FROM documents 
+        ORDER BY created_at DESC;
+    """, fetch=True)
+    return render_template("admin/documentos.html", 
+                          documents=docs, 
+                          username=session.get("username"),
+                          user_role=session.get("user_role"))
+
+
+@app.route("/admin/documentos/<int:doc_id>/download")
+@admin_required
+def admin_download_document(doc_id):
+    """Descargar el archivo original de un documento."""
+    doc = app.persistence.get_document_by_id(doc_id)
+    
+    if not doc:
+        flash("Documento no encontrado.", "error")
+        return redirect(url_for("admin_documentos"))
+    
+    original_path = doc.get("original_path")
+    
+    # Intentar path original
+    if original_path and os.path.exists(original_path):
+        from flask import send_file
+        return send_file(
+            original_path,
+            as_attachment=True,
+            download_name=doc["filename"]
+        )
+    
+    # Fallback: si el path tiene 'app/data/uploads', intentar sin 'app/'
+    if original_path and "app/data/uploads" in original_path:
+        corrected_path = original_path.replace("app/data/uploads", "data/uploads")
+        if os.path.exists(corrected_path):
+            from flask import send_file
+            return send_file(
+                corrected_path,
+                as_attachment=True,
+                download_name=doc["filename"]
+            )
+    
+    # Fallback: buscar en data/uploads por filename
+    filename = doc.get("filename")
+    if filename:
+        base_dir = Path(__file__).parent.parent
+        possible_path = base_dir / "data" / "uploads" / filename
+        if possible_path.exists():
+            from flask import send_file
+            return send_file(
+                str(possible_path),
+                as_attachment=True,
+                download_name=filename
+            )
+    
+    flash("Archivo original no encontrado.", "error")
+    return redirect(url_for("admin_documentos"))
+
+
+@app.route("/admin/fuentes-web", methods=["GET"])
+@admin_required
+def admin_fuentes_web():
+    """Página de administración de fuentes web."""
+    docs = app.db_conn.execute_query("""
+        SELECT * FROM documents WHERE source_type = 'web' ORDER BY created_at DESC;
+    """, fetch=True)
+    return render_template("admin/fuentes_web.html", 
+                          web_docs=docs, 
+                          username=session.get("username"),
+                          user_role=session.get("user_role"))
 
 
 # --- GESTIÓN DE FUENTES WEB ---

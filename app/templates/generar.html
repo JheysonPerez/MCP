@@ -105,9 +105,7 @@
       </div>
       <div style="display: flex; gap: 0.4rem; flex-shrink: 0;">
         <a href="{{ url_for('generar_ver', gen_id=g.id) }}" style="padding: 0.35rem 0.7rem; background: var(--color-primary-light); color: var(--color-primary); border-radius: var(--radius-md); font-size: 0.78rem; font-weight: 600; text-decoration: none; white-space: nowrap;"><i class="bi bi-eye"></i> Ver</a>
-        <form action="{{ url_for('generar_eliminar', gen_id=g.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('¿Eliminar este documento?')">
-          <button type="submit" style="padding: 0.35rem 0.7rem; background: var(--color-error-bg, #fee2e2); color: var(--color-error, #dc2626); border: none; border-radius: var(--radius-md); font-size: 0.78rem; font-weight: 600; cursor: pointer;"><i class="bi bi-trash"></i></button>
-        </form>
+        <button type="button" onclick="deleteGenerado({{ g.id }}, '{{ g.title[:30] }}')" style="padding: 0.35rem 0.7rem; background: var(--color-error-bg, #fee2e2); color: var(--color-error, #dc2626); border: none; border-radius: var(--radius-md); font-size: 0.78rem; font-weight: 600; cursor: pointer;"><i class="bi bi-trash"></i></button>
       </div>
     </div>
   </div>
@@ -148,5 +146,20 @@ function toggleDocSelect() {
 document.querySelectorAll('input[name="doc_type"]').forEach(input => {
   input.addEventListener('change', () => updatePlaceholder(input.value));
 });
+
+function deleteGenerado(genId, title) {
+    confirmAction(
+        'Eliminar documento generado',
+        `¿Eliminar "${title}"? Esta acción no se puede deshacer.`,
+        () => {
+            fetch(`/generar/eliminar/${genId}`, { method: 'POST' })
+                .then(() => {
+                    showToast('Documento eliminado', 'success');
+                    setTimeout(() => location.reload(), 500);
+                })
+                .catch(() => showToast('Error de conexión', 'error'));
+        }
+    );
+}
 </script>
 {% endblock %}

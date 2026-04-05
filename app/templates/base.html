@@ -720,6 +720,9 @@
                 <a href="{{ url_for('web_sources') }}" class="{{ 'active' if request.endpoint == 'web_sources' else '' }}">
                     <i class="bi bi-globe2"></i><span>Web</span>
                 </a>
+                <a href="{{ url_for('academico') }}" class="{{ 'active' if request.endpoint == 'academico' else '' }}">
+                    <i class="bi bi-mortarboard"></i><span>Académico</span>
+                </a>
                 <a href="{{ url_for('historial') }}" class="{{ 'active' if request.endpoint == 'historial' else '' }}">
                     <i class="bi bi-clock-history"></i><span>Historial</span>
                 </a>

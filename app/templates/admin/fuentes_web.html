@@ -1,0 +1,157 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Fuentes Web - Admin{% endblock %}
+{% block admin_page_title %}Gestión de Fuentes Web{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('web') }}" class="btn-primary">
+    <i class="bi bi-plus-lg"></i> Agregar Fuente
+</a>
+{% endblock %}
+
+{% block admin_content %}
+<style>
+    .web-sources-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .web-sources-table th,
+    .web-sources-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .web-sources-table th {
+        background: #f9fafb;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: #6b7280;
+    }
+    
+    .web-sources-table tr:hover {
+        background: #f9fafb;
+    }
+    
+    .status-synced { color: #16a34a; }
+    .status-pending { color: #dc2626; }
+    
+    .btn-sm {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        margin-right: 0.25rem;
+    }
+    
+    .btn-refresh {
+        background: #e0e7ff;
+        color: #3730a3;
+    }
+    
+    .btn-view {
+        background: #f3f4f6;
+        color: #374151;
+    }
+    
+    .btn-delete-web {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+</style>
+
+{% if sources %}
+<table class="web-sources-table">
+    <thead>
+        <tr>
+            <th>Nombre</th>
+            <th>URL</th>
+            <th>Estado</th>
+            <th>Última Sincronización</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for source in sources %}
+        <tr>
+            <td><strong>{{ source.name }}</strong></td>
+            <td>
+                <a href="{{ source.url }}" target="_blank" style="color: #1d4ed8; font-size: 0.85rem;">
+                    {{ source.url[:50] }}{% if source.url|length > 50 %}...{% endif %}
+                </a>
+            </td>
+            <td class="status-{{ 'synced' if source.last_scraped_at else 'pending' }}">
+                <i class="bi bi-circle-fill" style="font-size: 0.4rem; vertical-align: middle; margin-right: 0.3rem;"></i>
+                {{ 'Sincronizado' if source.last_scraped_at else 'Pendiente' }}
+            </td>
+            <td>
+                {% if source.last_scraped_at %}
+                    {{ source.last_scraped_at.strftime('%d/%m/%Y %H:%M') }}
+                {% else %}
+                    <span style="color: #9ca3af;">-</span>
+                {% endif %}
+            </td>
+            <td>
+                <button class="btn-sm btn-refresh" onclick="refreshSource({{ source.id }})" title="Sincronizar">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <a href="{{ url_for('web_view_doc', doc_id=source.document_id) }}" class="btn-sm btn-view" title="Ver documento">
+                    <i class="bi bi-eye"></i>
+                </a>
+                <button class="btn-sm btn-delete-web" onclick="deleteSource({{ source.id }}, '{{ source.name }}')" title="Eliminar">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div style="text-align: center; padding: 3rem; color: #6b7280;">
+    <i class="bi bi-globe" style="font-size: 3rem; margin-bottom: 1rem; color: #d1d5db;"></i>
+    <p>No hay fuentes web configuradas</p>
+    <a href="{{ url_for('web') }}" style="color: #1d4ed8; margin-top: 1rem; display: inline-block;">
+        Agregar primera fuente
+    </a>
+</div>
+{% endif %}
+
+<script>
+function refreshSource(sourceId) {
+    fetch(`/web/refresh/${sourceId}`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Fuente sincronizada', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Error al sincronizar', 'error');
+            }
+        })
+        .catch(() => showToast('Error de conexión', 'error'));
+}
+
+function deleteSource(sourceId, name) {
+    confirmAction(
+        'Eliminar fuente web',
+        `¿Eliminar "${name}"? Esta acción no se puede deshacer.`,
+        () => {
+            fetch(`/web/delete/${sourceId}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Fuente eliminada', 'success');
+                        setTimeout(() => location.reload(), 500);
+                    } else {
+                        showToast(data.error || 'Error al eliminar', 'error');
+                    }
+                })
+                .catch(() => showToast('Error de conexión', 'error'));
+        }
+    );
+}
+</script>
+{% endblock %}

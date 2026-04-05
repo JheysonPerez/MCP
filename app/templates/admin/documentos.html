@@ -1,0 +1,188 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Documentos - Admin{% endblock %}
+{% block admin_page_title %}Gestión de Documentos{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('documentos') }}" class="btn-primary">
+    <i class="bi bi-upload"></i> Subir Documentos
+</a>
+{% endblock %}
+
+{% block admin_content %}
+<style>
+    .docs-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .docs-table th,
+    .docs-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .docs-table th {
+        background: #f9fafb;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: #6b7280;
+    }
+    
+    .docs-table tr:hover {
+        background: #f9fafb;
+    }
+    
+    .status-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .status-completed {
+        background: #dcfce7;
+        color: #166534;
+    }
+    
+    .status-processing {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    
+    .status-failed {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+    
+    .status-pending {
+        background: #e5e7eb;
+        color: #6b7280;
+    }
+    
+    .btn-sm {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        margin-right: 0.25rem;
+    }
+    
+    .btn-view {
+        background: #e0e7ff;
+        color: #3730a3;
+    }
+    
+    .btn-reindex {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    
+    .btn-delete-doc {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+    
+    .btn-sm:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+</style>
+
+{% if documents %}
+<table class="docs-table">
+    <thead>
+        <tr>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Estado</th>
+            <th>Indexado</th>
+            <th>Creado</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for doc in documents %}
+        <tr data-id="{{ doc.id }}">
+            <td>
+                <strong>{{ doc.filename }}</strong>
+                {% if doc.description %}
+                    <br><small style="color: #6b7280;">{{ doc.description[:60] }}{% if doc.description|length > 60 %}...{% endif %}</small>
+                {% endif %}
+            </td>
+            <td>{{ doc.file_type or '-' }}</td>
+            <td>
+                <span class="status-badge status-{{ doc.processing_status }}">
+                    {{ doc.processing_status|capitalize }}
+                </span>
+            </td>
+            <td>
+                {% if doc.is_indexed %}
+                    <i class="bi bi-check-circle" style="color: #16a34a;"></i>
+                    <small>{{ doc.chunk_count or 0 }} chunks</small>
+                {% else %}
+                    <i class="bi bi-x-circle" style="color: #dc2626;"></i>
+                {% endif %}
+            </td>
+            <td>{{ doc.created_at.strftime('%d/%m/%Y') if doc.created_at else '-' }}</td>
+            <td>
+                <a href="{{ url_for('ver', doc_id=doc.id) }}" class="btn-sm btn-view" title="Ver documento">
+                    <i class="bi bi-eye"></i>
+                </a>
+                {% if doc.processing_status == 'completed' %}
+                <button class="btn-sm btn-reindex" onclick="reindexDoc({{ doc.id }})" title="Reindexar">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                {% endif %}
+                <button class="btn-sm btn-delete-doc" onclick="deleteDoc({{ doc.id }}, '{{ doc.filename }}')" title="Eliminar">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div style="text-align: center; padding: 3rem; color: #6b7280;">
+    <i class="bi bi-folder" style="font-size: 3rem; margin-bottom: 1rem; color: #d1d5db;"></i>
+    <p>No hay documentos en el sistema</p>
+    <a href="{{ url_for('documentos') }}" style="color: #1d4ed8; margin-top: 1rem; display: inline-block;">
+        Subir primer documento
+    </a>
+</div>
+{% endif %}
+
+<script>
+function reindexDoc(docId) {
+    fetch(`/documentos/${docId}/reindex`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Documento reindexado', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Error al reindexar', 'error');
+            }
+        })
+        .catch(() => showToast('Error de conexión', 'error'));
+}
+
+function deleteDoc(docId, filename) {
+    confirmAction(
+        'Eliminar documento',
+        `¿Eliminar "${filename}"? Esta acción no se puede deshacer.`,
+        () => {
+            fetch(`/documentos/${docId}/eliminar`, { method: 'POST' })
+                .then(() => {
+                    showToast('Documento eliminado', 'success');
+                    setTimeout(() => location.reload(), 500);
+                })
+                .catch(() => showToast('Error de conexión', 'error'));
+        }
+    );
+}
+</script>
+{% endblock %}

@@ -207,8 +207,10 @@ def consultar():
                         )
                         if doc_result:
                             filtro_doc = str(doc_result[0]['id'])
+                            print(f"[SCRAPE] path={doc_seleccionado} url={filtro_doc} len={len(filtro_doc)} stderr=''")
                     except Exception as e:
-                        print(f"[ERROR] No se pudo obtener ID del documento: {e}")
+                        print(f"[SCRAPE] path={doc_seleccionado} no JSON found in output. stderr={str(e)}")
+                        filtro_doc = None
 
             try:
                 # Aumentado top_k=10 para recuperar más contexto del documento
@@ -689,3 +691,267 @@ def web_refresh(doc_id):
         flash(f'Error al actualizar: {result["error"]}', 'error')
     
     return redirect(url_for('web_sources'))
+
+
+# --- MÓDULO ACADÉMICO UNAS ---
+
+@app.route("/academico")
+@login_required
+def academico():
+    """Página principal de integración con sistema académico UNAS."""
+    session_valid = session.get("academico_session_valid", False)
+    academico_user = session.get("academico_user", None)
+    pages = app.academico_service.get_pages()
+    
+    # Documentos ya indexados del sistema académico
+    docs_academico = app.db_conn.execute_query("""
+        SELECT id, filename, created_at, last_scraped_at 
+        FROM documents 
+        WHERE source_type = 'academico' 
+        ORDER BY created_at DESC;
+    """, fetch=True) or []
+    
+    return render_template("academico.html",
+        session_valid=session_valid,
+        academico_user=academico_user,
+        pages=pages,
+        docs_academico=docs_academico,
+        username=session.get("username")
+    )
+
+@app.route("/academico/login", methods=["POST"])
+@login_required
+def academico_login():
+    """Paso 1: Carga el login, rellena credenciales, captura CAPTCHA."""
+    unas_user = request.form.get("unas_username", "").strip()
+    unas_pass = request.form.get("unas_password", "").strip()
+    
+    if not unas_user or not unas_pass:
+        flash("Ingresa tu usuario y contraseña de UNAS.", "error")
+        return redirect(url_for("academico"))
+    
+    # Guardar credenciales temporalmente en sesion (solo para el proceso actual)
+    session["_tmp_unas_user"] = unas_user
+    session["_tmp_unas_pass"] = unas_pass
+    
+    result = app.academico_service.start_login_session(unas_user, unas_pass)
+    
+    if not result["success"]:
+        flash(f"Error: {result['error']}", "error")
+        return redirect(url_for("academico"))
+    
+    # Pasar imagen del captcha al template
+    return render_template("academico.html",
+        session_valid=False,
+        academico_user=None,
+        pages=app.academico_service.get_pages(),
+        docs_academico=[],
+        username=session.get("username"),
+        show_captcha_modal=True,
+        captcha_image=result.get("captcha_image"),
+    )
+
+@app.route("/academico/submit-captcha", methods=["POST"])
+@login_required  
+def academico_submit_captcha():
+    captcha_solution = request.form.get("captcha_solution", "").strip()
+    unas_user = session.get("_tmp_unas_user", "")
+    unas_pass = session.get("_tmp_unas_pass", "")
+    
+    if not captcha_solution or not unas_user:
+        flash("Sesión expirada. Intenta nuevamente.", "error")
+        return redirect(url_for("academico"))
+    
+    result = app.academico_service.complete_login_with_captcha(
+        unas_user, unas_pass, captcha_solution
+    )
+    
+    print(f"[ACADEMICO] resultado: {result}")
+    
+    session.pop("_tmp_unas_user", None)
+    session.pop("_tmp_unas_pass", None)
+    
+    if result["success"]:
+        app.academico_service.set_cookies(result["cookies"])
+        session["academico_session_valid"] = True
+        session["academico_user"] = result["username"]
+        session["academico_cookies"] = result["cookies"]
+        session.modified = True
+        flash(f"✅ Conectado como {result['username']}", "success")
+        return redirect(url_for("academico"))
+    else:
+        flash(f"Error: {result.get('error', 'desconocido')}", "error")
+        new_captcha = app.academico_service.start_login_session(unas_user, unas_pass)
+        session["_tmp_unas_user"] = unas_user
+        session["_tmp_unas_pass"] = unas_pass
+        return render_template("academico.html",
+            session_valid=False, academico_user=None,
+            pages=app.academico_service.get_pages(),
+            docs_academico=[], username=session.get("username"),
+            show_captcha_modal=True,
+            captcha_image=new_captcha.get("captcha_image") if new_captcha.get("success") else None,
+        )
+
+@app.route("/academico/disconnect", methods=["POST"])
+@login_required
+def academico_disconnect():
+    """Desconecta la sesión académica."""
+    session.pop("academico_session_valid", None)
+    session.pop("academico_user", None)
+    session.pop("academico_cookies", None)
+    app.academico_service.set_cookies("")
+    flash("Sesión académica desconectada.", "info")
+    return redirect(url_for("academico"))
+
+@app.route("/academico/chat", methods=["POST"])
+@login_required
+def academico_chat():
+    data = request.get_json()
+    user_message = (data or {}).get("message", "").strip()
+    
+    if not user_message:
+        return jsonify({"error": "Mensaje vacío"})
+    
+    if not session.get("academico_session_valid"):
+        return jsonify({"response": "No hay sesión activa. Reconéctate en Académico."})
+    
+    cookies = session.get("academico_cookies", "")
+    
+    # Scraping en tiempo real
+    try:
+        academic_context = app.academico_service.query_realtime(user_message, cookies)
+    except Exception as e:
+        print(f"[ACAD scrape error]: {e}")
+        academic_context = ""
+    
+    if "SESION_EXPIRADA" in (academic_context or ""):
+        session["academico_session_valid"] = False
+        return jsonify({"response": "Tu sesión de UNAS expiró. Reconéctate en la pestaña Académico."})
+    
+    try:
+        codsem = app.academico_service._get_current_semester(cookies)
+    except:
+        codsem = "2026-1"
+    
+    # Llamar directo a Ollama — mismo patrón que generation_service.generate()
+    try:
+        import requests as http_req
+        import os
+        
+        ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        chat_model = os.environ.get("OLLAMA_CHAT_MODEL", "qwen2.5:3b")
+        
+        system = (
+            "Eres un asistente académico de la UNAS (Universidad Nacional Agraria de la Selva). "
+            "Responde en Markdown bien formateado.\n"
+            "- Usa tablas Markdown para horarios y notas\n"
+            "- Usa **negrita** para códigos de curso y datos importantes\n"
+            "- Si un valor es 0 o vacío escribe 'Sin registro aún'\n"
+            "- Solo usa la información provista, no inventes datos\n\n"
+            f"=== DATOS ACADÉMICOS EN TIEMPO REAL — UNAS {codsem} ===\n"
+            f"{academic_context}\n"
+            "=== FIN DE DATOS ==="
+        )
+        
+        resp = http_req.post(
+            f"{ollama_url}/api/chat",
+            json={
+                "model": chat_model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_message}
+                ],
+                "stream": False,
+                "options": {
+                    "temperature": 0.3,
+                    "num_predict": 1024
+                }
+            },
+            timeout=60
+        )
+        resp.raise_for_status()
+        content = resp.json().get("message", {}).get("content", "").strip()
+        
+        print(f"[ACAD] OK — context={len(academic_context)} response={len(content)}")
+        return jsonify({"response": content or "El modelo no generó respuesta."})
+    
+    except http_req.exceptions.Timeout:
+        return jsonify({"error": "⏱️ El modelo tardó demasiado. Intenta nuevamente."})
+    except Exception as e:
+        print(f"[ACAD ERROR]: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"error": f"Error: {str(e)}"})
+
+@app.route("/academico/extract", methods=["POST"])
+@login_required
+def academico_extract():
+    """Extrae una página del sistema académico y la indexa."""
+    if not session.get("academico_session_valid"):
+        flash("Primero conecta tu sesión académica.", "error")
+        return redirect(url_for("academico"))
+    
+    page_key = request.form.get("page_key", "").strip()
+    pages = app.academico_service.get_pages()
+    
+    if page_key not in pages:
+        flash("Página no válida.", "error")
+        return redirect(url_for("academico"))
+    
+    page_info = pages[page_key]
+    
+    # Restaurar cookies
+    cookies_str = session.get("academico_cookies", "")
+    if cookies_str:
+        app.academico_service.set_cookies(cookies_str)
+    
+    result = app.academico_service.scrape_page(page_info["path"])
+    
+    if not result["success"]:
+        flash(f"Error al extraer: {result['error']}", "error")
+        return redirect(url_for("academico"))
+    
+    import uuid
+    
+    processed_name = f"{uuid.uuid4().hex[:8]}_academico_{page_key}.txt"
+    processed_path = os.path.join("data/processed", processed_name)
+    
+    os.makedirs("data/processed", exist_ok=True)
+    with open(processed_path, "w", encoding="utf-8") as f:
+        f.write(f"# {result['title']}\n")
+        f.write(f"Fuente: {result['url']}\n")
+        f.write(f"Usuario: {session.get('academico_user', 'N/A')}\n\n")
+        f.write(result["content"])
+    
+    user_id = session.get("user_id")
+    doc_id = app.persistence.register_document(
+        filename=f"[UNAS] {page_info['label']}",
+        original_path=result["url"],
+        processed_path=os.path.abspath(processed_path),
+        user_id=user_id
+    )
+    app.persistence.update_document_status(
+        doc_id,
+        processing_status="completed",
+        processed_path=os.path.abspath(processed_path)
+    )
+    
+    conn = app.db_conn.get_connection()
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE documents SET source_url=%s, source_type='academico',
+            last_scraped_at=NOW() WHERE id=%s
+        """, (result["url"], doc_id))
+    conn.commit()
+    conn.close()
+    
+    app.rag_service.index_document(doc_id, os.path.abspath(processed_path))
+    flash(f"'{page_info['label']}' indexado ({result['word_count']} palabras)", "success")
+    return redirect(url_for("academico"))
+
+@app.route("/academico/delete/<int:doc_id>", methods=["POST"])
+@login_required
+def academico_delete(doc_id):
+    """Elimina un documento académico indexado."""
+    app.rag_service.delete_document(doc_id)
+    flash("Documento académico eliminado.", "info")
+    return redirect(url_for("academico"))

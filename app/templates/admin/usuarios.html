@@ -155,6 +155,19 @@
         cursor: pointer;
         font-size: 1.2rem;
         color: #6b7280;
+        padding: 0.4rem;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        transition: all 0.2s;
+    }
+    
+    .modal-close:hover {
+        background: #f3f4f6;
+        color: #374151;
     }
     
     .form-group {
@@ -213,6 +226,8 @@
         background: white;
         border-radius: 8px;
         cursor: pointer;
+        color: #374151;
+        font-size: 0.9rem;
     }
     
     .btn-secondary:hover {
@@ -266,12 +281,22 @@
         </tr>
     </thead>
     <tbody>
+        {% set first_admin_id = users | selectattr('role', 'equalto', 'admin') | map(attribute='id') | min %}
         {% for user in users %}
-        <tr data-id="{{ user.id }}">
+        {% set is_first_admin = (user.id == first_admin_id) %}
+        <tr data-id="{{ user.id }}" 
+            data-username="{{ user.username }}"
+            data-email="{{ user.email }}"
+            data-role="{{ user.role }}"
+            data-is-active="{{ user.is_active|lower }}"
+            data-is-first-admin="{{ is_first_admin|lower }}">
             <td>
                 <strong>{{ user.username }}</strong>
                 {% if user.id == session.get('user_id') %}
                     <span style="color: #6b7280; font-size: 0.75rem;">(Tú)</span>
+                {% endif %}
+                {% if is_first_admin %}
+                    <span style="color: #92400e; font-size: 0.75rem; margin-left: 0.3rem;">(Principal)</span>
                 {% endif %}
             </td>
             <td>{{ user.email }}</td>
@@ -287,10 +312,10 @@
             <td>{{ user.created_at.strftime('%d/%m/%Y') if user.created_at else '-' }}</td>
             <td>
                 <div class="actions">
-                    <button class="btn-icon btn-edit" onclick="openModal('edit', {{ user | tojson }})" title="Editar">
+                    <button class="btn-icon btn-edit" onclick="editUser({{ user.id }})" title="Editar" {% if is_first_admin %}disabled style="opacity: 0.5; cursor: not-allowed;"{% endif %}>
                         <i class="bi bi-pencil"></i>
                     </button>
-                    {% if user.id != session.get('user_id') %}
+                    {% if user.id != session.get('user_id') and not is_first_admin %}
                     <button class="btn-icon btn-delete" onclick="deleteUser({{ user.id }}, '{{ user.username }}')" title="Eliminar">
                         <i class="bi bi-trash"></i>
                     </button>
@@ -372,6 +397,27 @@
     const modal = document.getElementById('userModal');
     const form = document.getElementById('userForm');
     let isEditMode = false;
+    
+    function editUser(userId) {
+        const row = document.querySelector(`tr[data-id="${userId}"]`);
+        if (!row) return;
+        
+        // Proteger al primer admin - no editable
+        if (row.dataset.isFirstAdmin === 'true') {
+            showToast('El administrador principal no puede ser editado', 'error');
+            return;
+        }
+        
+        const userData = {
+            id: userId,
+            username: row.dataset.username,
+            email: row.dataset.email,
+            role: row.dataset.role,
+            is_active: row.dataset.isActive === 'true'
+        };
+        
+        openModal('edit', userData);
+    }
     
     function openModal(mode, userData = null) {
         isEditMode = mode === 'edit';

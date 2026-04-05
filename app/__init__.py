@@ -15,6 +15,7 @@ from services.generation_service import GenerationService
 from services.user_service import UserService
 from services.rerank_service import RerankService
 from services.hybrid_search_service import HybridSearchService
+from services.academico_service import AcademicoService
 
 load_dotenv()
 
@@ -58,6 +59,9 @@ def create_app():
     
     # Web Scraper Service
     web_scraper_service = WebScraperService()
+    
+    # Academico Service
+    academico_service = AcademicoService()
 
     # Inyección de dependencias en el contexto global de app para poder consumirlos en app/routes.py
     app.db_conn = db_conn
@@ -71,6 +75,7 @@ def create_app():
     app.generation_service = generation_service
     app.user_service = user_service
     app.web_scraper_service = web_scraper_service
+    app.academico_service = academico_service
 
     # Registrar Rutas
     with app.app_context():

@@ -1,0 +1,140 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Dashboard - Admin{% endblock %}
+{% block admin_page_title %}Dashboard de Administración{% endblock %}
+
+{% block admin_content %}
+<style>
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        text-align: center;
+    }
+    
+    .stat-card.accent-green {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    }
+    
+    .stat-card.accent-orange {
+        background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+    }
+    
+    .stat-card.accent-purple {
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    .admin-sections {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .admin-section {
+        background: #f9fafb;
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+    
+    .admin-section h3 {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        color: #374151;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .quick-link {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem;
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        text-decoration: none;
+        color: #374151;
+        transition: all 0.2s;
+    }
+    
+    .quick-link:hover {
+        background: #e0e7ff;
+        color: #1d4ed8;
+    }
+</style>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ total_users }}</div>
+        <div class="stat-label">Usuarios</div>
+    </div>
+    <div class="stat-card accent-green">
+        <div class="stat-value">{{ total_documents }}</div>
+        <div class="stat-label">Documentos</div>
+    </div>
+    <div class="stat-card accent-orange">
+        <div class="stat-value">{{ total_web_sources }}</div>
+        <div class="stat-label">Fuentes Web</div>
+    </div>
+    <div class="stat-card accent-purple">
+        <div class="stat-value">{{ indexed_documents }}</div>
+        <div class="stat-label">Indexados</div>
+    </div>
+</div>
+
+<div class="admin-sections">
+    <div class="admin-section">
+        <h3><i class="bi bi-lightning-charge"></i> Accesos Rápidos</h3>
+        <a href="{{ url_for('admin_usuarios') }}" class="quick-link">
+            <span>Gestionar Usuarios</span>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+        <a href="{{ url_for('admin_documentos') }}" class="quick-link">
+            <span>Gestionar Documentos</span>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+        <a href="{{ url_for('admin_fuentes_web') }}" class="quick-link">
+            <span>Gestionar Fuentes Web</span>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+    
+    <div class="admin-section">
+        <h3><i class="bi bi-info-circle"></i> Estado del Sistema</h3>
+        <div style="padding: 0.75rem; background: white; border-radius: 8px; margin-bottom: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Base de datos</span>
+                <span style="color: #16a34a;"><i class="bi bi-check-circle"></i> Conectada</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>Ollama</span>
+                <span style="color: #16a34a;"><i class="bi bi-check-circle"></i> Disponible</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Embeddings</span>
+                <span style="color: #16a34a;"><i class="bi bi-check-circle"></i> Activo</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

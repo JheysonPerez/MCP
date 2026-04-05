@@ -48,7 +48,7 @@
                     onfocus="this.style.borderColor='#1d4ed8'" onblur="this.style.borderColor='#d1d5db'">
                 <button type="button" id="toggle-eye" onclick="togglePassword()"
                     style="position: absolute; right: 2px; top: 2px; bottom: 2px; width: 40px; background: none; border: none; cursor: pointer; padding: 0; color: #9ca3af; display: flex; align-items: center; justify-content: center; z-index: 10; border-radius: 0 6px 6px 0;">
-                    <i class="bi bi-eye" id="eye-icon" style="font-size: 1.1rem;"></i>
+                    <i class="bi bi-eye-slash" id="eye-icon" style="font-size: 1.1rem;"></i>
                 </button>
             </div>
 
@@ -67,10 +67,10 @@ function togglePassword() {
     const icon = document.getElementById('eye-icon');
     if (input.type === 'password') {
         input.type = 'text';
-        icon.className = 'bi bi-eye-slash';
+        icon.className = 'bi bi-eye';
     } else {
         input.type = 'password';
-        icon.className = 'bi bi-eye';
+        icon.className = 'bi bi-eye-slash';
     }
 }
 </script>

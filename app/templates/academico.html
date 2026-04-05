@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block title %}Sistema Académico UNAS{% endblock %}
+{% block page_title %}Sistema Académico UNAS{% endblock %}
+{% block page_subtitle %}Conecta tu cuenta institucional y extrae tu información académica{% endblock %}
+
+{% block content %}
+
+{% if not session_valid %}
+<div style="max-width: 480px; margin: 2rem auto;">
+  <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 2.5rem;">
+    
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <div style="width: 60px; height: 60px; background: var(--color-primary-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+        <i class="bi bi-mortarboard" style="font-size: 1.6rem; color: var(--color-primary);"></i>
+      </div>
+      <h2 style="margin: 0 0 0.4rem; font-size: 1.2rem; font-weight: 700;">Conectar cuenta UNAS</h2>
+      <p style="color: var(--color-text-muted); font-size: 0.85rem; margin: 0;">
+        Se abrirá una ventana del navegador. Solo necesitas resolver el CAPTCHA.
+      </p>
+    </div>
+
+    <div style="background: var(--color-bg); border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
+      <div style="font-size: 0.72rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">Cómo funciona</div>
+      <div style="display: flex; gap: 0.75rem; align-items: flex-start; margin-bottom: 0.5rem;">
+        <i class="bi bi-pencil-fill" style="color: var(--color-primary); margin-top: 2px; flex-shrink: 0;"></i>
+        <span style="font-size: 0.84rem; color: var(--color-text-main);">Ingresa tu usuario y contraseña abajo</span>
+      </div>
+      <div style="display: flex; gap: 0.75rem; align-items: flex-start; margin-bottom: 0.5rem;">
+        <i class="bi bi-window" style="color: var(--color-primary); margin-top: 2px; flex-shrink: 0;"></i>
+        <span style="font-size: 0.84rem; color: var(--color-text-main);">Se abre una ventana con el login de UNAS (ya pre-rellenado)</span>
+      </div>
+      <div style="display: flex; gap: 0.75rem; align-items: flex-start; margin-bottom: 0.5rem;">
+        <i class="bi bi-shield-check" style="color: var(--color-primary); margin-top: 2px; flex-shrink: 0;"></i>
+        <span style="font-size: 0.84rem; color: var(--color-text-main);">Solo resuelves el CAPTCHA y haces clic en Ingresar</span>
+      </div>
+      <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+        <i class="bi bi-check-circle-fill" style="color: var(--color-primary); margin-top: 2px; flex-shrink: 0;"></i>
+        <span style="font-size: 0.84rem; color: var(--color-text-main);">La ventana se cierra sola y quedas conectado</span>
+      </div>
+    </div>
+
+    <form action="{{ url_for('academico_login') }}" method="POST"
+          onsubmit="document.getElementById('thinking-overlay').classList.add('active'); document.getElementById('thinking-label').textContent = 'Abriendo ventana de login UNAS...';">
+      
+      <label style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.05em;">Usuario UNAS</label>
+      <input type="text" name="unas_username" required
+        placeholder="Tu código o usuario institucional"
+        style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.9rem; margin-bottom: 1rem; font-family: inherit; box-sizing: border-box;">
+      
+      <label style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.05em;">Contraseña UNAS</label>
+      <div style="position: relative; margin-bottom: 1.25rem; display: flex; align-items: center;">
+        <input type="password" name="unas_password" id="pwd-input" required
+          placeholder="Tu contraseña del sistema académico"
+          style="width: 100%; padding: 0.75rem 2.25rem 0.75rem 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.9rem; font-family: inherit; box-sizing: border-box; line-height: 1.2;">
+        <button type="button" onclick="togglePwd()"
+          style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-75%); background: none; border: none; color: var(--color-text-muted); cursor: pointer; padding: 0; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem;">
+          <i class="bi bi-eye-slash" id="pwd-eye"></i>
+        </button>
+      </div>
+
+      <div style="background: #fffbeb; border: 1px solid #fbbf24; border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.78rem; color: #92400e; display: flex; gap: 0.5rem; align-items: flex-start;">
+        <i class="bi bi-lock-fill" style="flex-shrink: 0; margin-top: 1px;"></i>
+        <span>Tus credenciales solo se usan para autenticarte con UNAS y no se almacenan en ningún momento.</span>
+      </div>
+
+      <button type="submit"
+        style="width: 100%; background: var(--color-primary); color: white; border: none; border-radius: var(--radius-md); padding: 0.875rem; font-weight: 700; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+        <i class="bi bi-box-arrow-in-right"></i> Conectar con UNAS
+      </button>
+    </form>
+  </div>
+</div>
+
+{% else %}
+<!-- ESTADO: CONECTADO -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div style="display: flex; align-items: center; gap: 0.75rem;">
+    <div style="width: 42px; height: 42px; background: #d1fae5; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+      <i class="bi bi-check-circle-fill" style="color: #059669; font-size: 1.15rem;"></i>
+    </div>
+    <div>
+      <div style="font-weight: 700; font-size: 0.95rem;">{{ academico_user }}</div>
+      <div style="font-size: 0.75rem; color: var(--color-text-muted);">Sesión activa · academico.unas.edu.pe · consultas en tiempo real</div>
+    </div>
+  </div>
+  <form action="{{ url_for('academico_disconnect') }}" method="POST">
+    <button type="submit" style="padding: 0.5rem 1rem; background: #fee2e2; color: #dc2626; border: none; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+      <i class="bi bi-box-arrow-right"></i> Desconectar
+    </button>
+  </form>
+</div>
+
+<!-- CHAT ACADÉMICO -->
+<div style="display: flex; flex-direction: column; height: calc(100vh - 220px); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden;">
+
+  <!-- Mensajes -->
+  <div id="acad-messages" style="flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+    <!-- Mensaje de bienvenida -->
+    <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+      <div style="width: 32px; height: 32px; background: var(--color-primary-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <i class="bi bi-mortarboard" style="color: var(--color-primary); font-size: 0.85rem;"></i>
+      </div>
+      <div style="background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-lg); border-top-left-radius: 4px; padding: 0.75rem 1rem; max-width: 80%; font-size: 0.875rem; line-height: 1.5;">
+        Hola <strong>{{ academico_user }}</strong>, soy tu asistente académico. Puedo consultarte información en tiempo real de tu cuenta en UNAS.<br><br>
+        Puedes preguntarme cosas como:<br>
+        &nbsp;• <em>¿Cuáles son mis notas del semestre?</em><br>
+        &nbsp;• <em>¿Qué cursos tengo este ciclo?</em><br>
+        &nbsp;• <em>¿Cuál es mi horario?</em><br>
+        &nbsp;• <em>¿Cuánto debo pagar?</em>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div style="border-top: 1px solid var(--color-border); padding: 1rem; background: var(--color-surface);">
+    <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
+      <textarea id="acad-input" rows="1"
+        placeholder="Pregunta sobre tus notas, horario, matrícula, pagos..."
+        style="flex: 1; padding: 0.75rem 1rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-lg); font-size: 0.875rem; font-family: inherit; resize: none; outline: none; max-height: 120px; overflow-y: auto; background: var(--color-bg);"
+        onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendAcadMessage();}"></textarea>
+      <button onclick="sendAcadMessage()"
+        style="width: 42px; height: 42px; background: var(--color-primary); color: white; border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <i class="bi bi-send-fill" style="font-size: 0.9rem;"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script>
+function appendMessage(role, text) {
+  const container = document.getElementById('acad-messages');
+  const isUser = role === 'user';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = `display:flex; gap:0.75rem; align-items:flex-start; ${isUser ? 'flex-direction:row-reverse;' : ''}`;
+
+  const avatar = document.createElement('div');
+  avatar.style.cssText = `width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:${isUser ? 'var(--color-primary)' : 'var(--color-primary-light)'};`;
+  avatar.innerHTML = isUser
+    ? '<i class="bi bi-person-fill" style="color:white;font-size:0.85rem;"></i>'
+    : '<i class="bi bi-mortarboard" style="color:var(--color-primary);font-size:0.85rem;"></i>';
+
+  const bubble = document.createElement('div');
+  bubble.style.cssText = `background:${isUser ? 'var(--color-primary)' : 'var(--color-bg)'}; color:${isUser ? 'white' : 'inherit'}; border:1px solid ${isUser ? 'transparent' : 'var(--color-border)'}; border-radius:var(--radius-lg); ${isUser ? 'border-top-right-radius:4px;' : 'border-top-left-radius:4px;'} padding:0.75rem 1rem; max-width:80%; font-size:0.875rem; line-height:1.6;`;
+  
+  if (role === 'assistant') {
+      bubble.innerHTML = marked.parse(text);
+      bubble.querySelectorAll('table').forEach(t => {
+          t.style.cssText = 'border-collapse:collapse;width:100%;font-size:0.82rem;margin:0.5rem 0;';
+      });
+      bubble.querySelectorAll('td,th').forEach(t => {
+          t.style.cssText = 'border:1px solid var(--color-border);padding:0.4rem 0.6rem;text-align:left;';
+      });
+      bubble.querySelectorAll('th').forEach(t => {
+          t.style.cssText += 'background:var(--color-primary-light);font-weight:700;';
+      });
+      bubble.querySelectorAll('p').forEach(p => p.style.margin = '0.3rem 0');
+      bubble.querySelectorAll('ul,ol').forEach(l => l.style.paddingLeft = '1.2rem');
+  } else {
+      bubble.textContent = text;
+  }
+
+  wrapper.appendChild(avatar);
+  wrapper.appendChild(bubble);
+  container.appendChild(wrapper);
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendLoading() {
+  const container = document.getElementById('acad-messages');
+  const div = document.createElement('div');
+  div.id = 'acad-loading';
+  div.style.cssText = 'display:flex; gap:0.75rem; align-items:center;';
+  div.innerHTML = `
+    <div style="width:32px; height:32px; border-radius:50%; background:var(--color-primary-light); display:flex; align-items:center; justify-content:center;">
+      <i class="bi bi-mortarboard" style="color:var(--color-primary);font-size:0.85rem;"></i>
+    </div>
+    <div style="background:var(--color-bg); border:1px solid var(--color-border); border-radius:var(--radius-lg); border-top-left-radius:4px; padding:0.75rem 1rem; font-size:0.875rem; color:var(--color-text-muted);">
+      <span class="acad-dots">Consultando UNAS</span><span id="acad-dot-anim">...</span>
+    </div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeLoading() {
+  const el = document.getElementById('acad-loading');
+  if (el) el.remove();
+}
+
+async function sendAcadMessage() {
+  const input = document.getElementById('acad-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  appendMessage('user', text);
+  appendLoading();
+
+  try {
+    const res = await fetch('/academico/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text})
+    });
+    const data = await res.json();
+    removeLoading();
+    appendMessage('assistant', data.response || data.error || 'Sin respuesta');
+  } catch (e) {
+    removeLoading();
+    appendMessage('assistant', 'Error de conexión. Intenta nuevamente.');
+  }
+}
+
+// Auto-resize textarea
+document.getElementById('acad-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+</script>
+{% endif %}
+
+{% if show_captcha_modal %}
+<!-- MODAL CAPTCHA -->
+<div id="captcha-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+  <div style="background: var(--color-surface); border-radius: var(--radius-lg); padding: 2rem; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+    
+    <h3 style="margin: 0 0 0.5rem; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+      <i class="bi bi-shield-check" style="color: var(--color-primary);"></i>
+      Verificación de seguridad
+    </h3>
+    <p style="font-size: 0.85rem; color: var(--color-text-muted); margin: 0 0 1.25rem;">
+      Escribe el código que aparece en la imagen para continuar.
+    </p>
+
+    {% if captcha_image %}
+    <div style="background: #f1f5f9; border-radius: var(--radius-md); padding: 1rem; text-align: center; margin-bottom: 1.25rem;">
+      <img src="data:image/png;base64,{{ captcha_image }}"
+           style="max-width: 280px; width: 100%; height: auto; border-radius: 4px; image-rendering: pixelated;"
+           alt="CAPTCHA">
+    </div>
+    {% else %}
+    <div style="background: #fef3c7; border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem; font-size: 0.85rem; color: #92400e;">
+      <i class="bi bi-exclamation-triangle"></i> No se pudo cargar la imagen del CAPTCHA. Intenta nuevamente.
+    </div>
+    {% endif %}
+
+    <form action="{{ url_for('academico_submit_captcha') }}" method="POST">
+      <label style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.05em;">Código del CAPTCHA</label>
+      <input type="text" name="captcha_solution" required autofocus
+        placeholder="Escribe el código aquí"
+        style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 1rem; font-family: monospace; letter-spacing: 0.1em; margin-bottom: 1rem; box-sizing: border-box; text-transform: uppercase;">
+      
+      <div style="display: flex; gap: 0.75rem;">
+        <button type="submit"
+          onclick="document.getElementById('thinking-overlay').classList.add('active'); document.getElementById('thinking-label').textContent = 'Verificando CAPTCHA...';"
+          style="flex: 1; background: var(--color-primary); color: white; border: none; border-radius: var(--radius-md); padding: 0.75rem; font-weight: 700; font-size: 0.9rem; cursor: pointer;">
+          <i class="bi bi-check-lg"></i> Verificar
+        </button>
+        <a href="{{ url_for('academico') }}"
+          style="padding: 0.75rem 1rem; background: var(--color-surface); color: var(--color-text-muted); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.9rem; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
+          Cancelar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<script>
+function togglePwd() {
+  const input = document.getElementById('pwd-input');
+  const eye = document.getElementById('pwd-eye');
+  if (input.type === 'password') {
+    input.type = 'text';
+    eye.className = 'bi bi-eye';
+  } else {
+    input.type = 'password';
+    eye.className = 'bi bi-eye-slash';
+  }
+}
+</script>
+
+{% endblock %}

@@ -128,13 +128,10 @@
                     style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 0 0.75rem; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.75rem; font-weight: 500; gap: 0.3rem; transition: all 0.2s;">
                     <i class="bi bi-chat-left-text"></i> Consultar
                 </a>
-                <form action="{{ url_for('web_delete', doc_id=doc.id) }}" method="POST" style="display: inline;"
-                      onsubmit="return confirm('¿Eliminar esta fuente web?');">
-                    <button type="submit" title="Eliminar"
-                        style="background: #fff; color: #dc2626; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </form>
+                <button type="button" title="Eliminar" onclick="deleteWebSource({{ doc.id }})"
+                    style="background: #fff; color: #dc2626; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+                    <i class="bi bi-x-lg"></i>
+                </button>
             </div>
         </div>
         {% endfor %}
@@ -160,6 +157,26 @@ document.getElementById('auto_refresh').addEventListener('change', function() {
         spans[1].style.transform = 'translateX(0)';
     }
 });
+
+function deleteWebSource(docId) {
+    confirmAction(
+        'Eliminar fuente web',
+        '¿Eliminar esta fuente web? Esta acción no se puede deshacer.',
+        () => {
+            fetch(`/web/eliminar/${docId}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Fuente eliminada', 'success');
+                        setTimeout(() => location.reload(), 500);
+                    } else {
+                        showToast(data.error || 'Error al eliminar', 'error');
+                    }
+                })
+                .catch(() => showToast('Error de conexión', 'error'));
+        }
+    );
+}
 </script>
 
 {% endblock %}

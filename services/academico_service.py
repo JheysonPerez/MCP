@@ -1,10 +1,21 @@
-import subprocess
-import sys
-import tempfile
-import os
-import json
+import requests
 import time
-from typing import Dict
+import uuid
+from typing import Dict, Tuple
+from bs4 import BeautifulSoup
+
+# Diccionario global para mantener sesiones requests entre llamadas
+# Key: session_id, Value: (requests.Session, timestamp)
+SESSIONS_DICT: Dict[str, Tuple[requests.Session, float]] = {}
+SESSION_TTL_SECONDS = 300  # 5 minutos
+
+
+def _cleanup_old_sessions():
+    """Elimina sesiones expiradas del diccionario global."""
+    now = time.time()
+    expired = [sid for sid, (session, ts) in SESSIONS_DICT.items() if now - ts > SESSION_TTL_SECONDS]
+    for sid in expired:
+        del SESSIONS_DICT[sid]
 
 
 class AcademicoService:
@@ -13,215 +24,171 @@ class AcademicoService:
     def __init__(self):
         self._cookies = None
         self._session_valid = False
-        self._session_proc = None
-        self._session_dir = None
+        self._headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'es-PE,es;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+        }
 
     def start_login_session(self, username: str, password: str) -> Dict:
-        """Lanza proceso Playwright que queda vivo. Devuelve imagen CAPTCHA."""
-        import tempfile
-
-        # Directorio de comunicación entre Flask y el proceso Playwright
-        session_dir = tempfile.mkdtemp(prefix='unas_session_')
-        self._session_dir = session_dir
-
-        captcha_file = os.path.join(session_dir, 'captcha.png')
-        result_file = os.path.join(session_dir, 'result.json')
-        command_file = os.path.join(session_dir, 'command.json')
-        ready_file = os.path.join(session_dir, 'ready.flag')
-
-        script = f'''
-import sys, json, time, os, base64
-
-session_dir    = {repr(session_dir)}
-captcha_file   = os.path.join(session_dir, "captcha.png")
-result_file    = os.path.join(session_dir, "result.json")
-command_file   = os.path.join(session_dir, "command.json")
-ready_file     = os.path.join(session_dir, "ready.flag")
-
-try:
-    from playwright.sync_api import sync_playwright
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            viewport={{"width": 1280, "height": 800}},
-            locale="es-PE",
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-        )
-        page = context.new_page()
-        page.goto({repr(self.BASE_URL + "/login")}, timeout=15000)
-        page.wait_for_load_state("networkidle", timeout=10000)
-
-        # Rellenar usuario y contraseña
-        try: page.fill("#username", {repr(username)}, timeout=2000)
-        except: pass
-        try: page.fill("#userpasw", {repr(password)}, timeout=2000)
-        except: pass
-
-        # Capturar CAPTCHA
+        """
+        Inicia sesión requests, obtiene página de login, extrae CAPTCHA y usertoken.
+        Devuelve session_id, captcha_image (base64) y token para uso posterior.
+        """
+        _cleanup_old_sessions()
+        
         try:
-            el = page.query_selector("#capcode")
-            if el:
-                el.screenshot(path=captcha_file)
-            else:
-                page.screenshot(path=captcha_file)
-        except:
-            page.screenshot(path=captcha_file)
+            # Crear nueva sesión requests
+            session = requests.Session()
+            session.headers.update(self._headers)
+            
+            # GET a la página de login
+            login_url = f"{self.BASE_URL}/login"
+            resp = session.get(login_url, timeout=15, allow_redirects=True)
+            resp.raise_for_status()
+            
+            # Parsear HTML con BeautifulSoup
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            
+            # Extraer imagen CAPTCHA (data:image/jpeg;base64,...)
+            captcha_img = soup.find('img', {'id': 'capcode'})
+            captcha_b64 = ""
+            if captcha_img and captcha_img.get('src'):
+                src = captcha_img['src']
+                if src.startswith('data:image'):
+                    # Extraer solo la parte base64 después de la coma
+                    captcha_b64 = src.split(',', 1)[1] if ',' in src else src
+                else:
+                    captcha_b64 = src
+            
+            # Extraer usertoken (puede estar vacío, pero lo enviamos igual)
+            token_input = soup.find('input', {'id': 'usertoken'})
+            usertoken = token_input.get('value', '') if token_input else ''
+            
+            # Generar session_id único
+            session_id = uuid.uuid4().hex
+            
+            # Guardar en diccionario global con timestamp
+            SESSIONS_DICT[session_id] = (session, time.time())
+            
+            return {
+                "success": True,
+                "captcha_image": captcha_b64,
+                "session_id": session_id,
+                "usertoken": usertoken
+            }
+            
+        except requests.RequestException as e:
+            return {"success": False, "error": f"Error de conexión: {str(e)}"}
+        except Exception as e:
+            return {"success": False, "error": f"Error inesperado: {str(e)}"}
 
-        # Señal: listo para recibir CAPTCHA
-        open(ready_file, "w").close()
-
-        # Esperar comando con solución del CAPTCHA (máx 3 min)
-        deadline = time.time() + 180
-        captcha_solution = None
-        while time.time() < deadline:
-            if os.path.exists(command_file):
+    def complete_login_with_captcha(self, username: str, password: str, captcha_solution: str, session_id: str, usertoken: str = "") -> Dict:
+        """
+        Completa el login enviando POST con credenciales + CAPTCHA.
+        Verifica éxito por presencia de cookie SGASID.
+        """
+        _cleanup_old_sessions()
+        
+        # Recuperar sesión del diccionario
+        if session_id not in SESSIONS_DICT:
+            return {"success": False, "error": "Sesión expirada. Por favor intenta nuevamente."}
+        
+        session, _ = SESSIONS_DICT[session_id]
+        
+        try:
+            # Construir payload exacto como el navegador
+            payload = {
+                "username": username,
+                "userpasw": password,
+                "captcha": captcha_solution,
+                "usercaptcha": captcha_solution,
+                "usertoken": usertoken  # puede ser "" — se envía igual
+            }
+            
+            # Headers específicos para el POST (incluir Referer)
+            post_headers = {
+                **self._headers,
+                'Referer': f"{self.BASE_URL}/login",
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Origin': self.BASE_URL,
+            }
+            
+            # POST al login
+            login_url = f"{self.BASE_URL}/login"
+            resp = session.post(login_url, data=payload, headers=post_headers, timeout=15, allow_redirects=True)
+            
+            # DEBUG: Ver exactamente qué responde UNAS
+            print(f"[LOGIN DEBUG] payload={payload}")
+            print(f"[LOGIN DEBUG] status={resp.status_code}")
+            print(f"[LOGIN DEBUG] final_url={resp.url}")
+            print(f"[LOGIN DEBUG] cookies={dict(session.cookies)}")
+            print(f"[LOGIN DEBUG] response_preview={resp.text[:500]}")
+            
+            # Verificar éxito: UNAS responde con JSON {"login":true,"status":"success"}
+            # o podemos verificar por cookie SGASID como backup
+            login_ok = False
+            
+            # Opción 1: verificar JSON response
+            try:
+                json_resp = resp.json()
+                login_ok = json_resp.get("login") == True or json_resp.get("status") == "success"
+                print(f"[LOGIN DEBUG] json_parsed={json_resp}, login_ok={login_ok}")
+            except Exception as e:
+                print(f"[LOGIN DEBUG] json_parse_failed: {e}")
+                login_ok = False
+            
+            # Opción 2: verificar cookie SGASID como backup
+            if not login_ok:
+                cookies_dict = session.cookies.get_dict()
+                login_ok = "SGASID" in cookies_dict
+                print(f"[LOGIN DEBUG] cookie_check: SGASID in cookies = {login_ok}")
+            
+            if not login_ok:
+                # Extraer mensaje de error del JSON o HTML
+                error_msg = "Login fallido. Verifica credenciales y CAPTCHA."
                 try:
-                    with open(command_file) as f:
-                        cmd = json.load(f)
-                    captcha_solution = cmd.get("captcha")
-                    break
-                except: pass
-            time.sleep(0.5)
-
-        if not captcha_solution:
-            with open(result_file, "w") as f:
-                json.dump({{"success": False, "error": "Timeout esperando CAPTCHA"}}, f)
-            context.close(); browser.close()
-            sys.exit(0)
-
-        # Setear CAPTCHA en ambos campos
-        page.evaluate("""
-            (val) => {{
-                ["#captcha", "#usercaptcha"].forEach(sel => {{
-                    const el = document.querySelector(sel);
-                    if (el) {{
-                        el.value = val;
-                        el.dispatchEvent(new Event("input", {{bubbles:true}}));
-                        el.dispatchEvent(new Event("change", {{bubbles:true}}));
-                    }}
-                }});
-            }}
-        """, captcha_solution)
-
-        # Verificar valores y hacer click
-        vals = page.evaluate("""
-            () => ({{
-                user: (document.querySelector("#username")||{{}}).value||"",
-                pass_len: ((document.querySelector("#userpasw")||{{}}).value||"").length,
-                captcha: (document.querySelector("#captcha")||{{}}).value||"",
-                usercaptcha: (document.querySelector("#usercaptcha")||{{}}).value||"",
-                usertoken: (document.querySelector("#usertoken")||{{}}).value||""
-            }})
-        """)
-
-        try: page.click("button:has-text('Ingresar')", timeout=2000)
-        except:
-            try: page.click("button[type=submit]", timeout=2000)
-            except: pass
-
-        time.sleep(3)
-        try: page.wait_for_load_state("networkidle", timeout=8000)
-        except: pass
-
-        page.screenshot(path=os.path.join(session_dir, "after_submit.png"))
-
-        if "/login" not in page.url:
-            cookies_list = context.cookies()
-            cookies_str = "; ".join([f"{{c['name']}}={{c['value']}}" for c in cookies_list])
-            unas_username = None
-            for sel in [".navbar-user", ".user-name", ".profile-name", ".navbar-right .dropdown-toggle"]:
-                try:
-                    el = page.query_selector(sel)
-                    if el:
-                        txt = el.inner_text().strip()
-                        if txt and len(txt) > 2:
-                            unas_username = txt; break
-                except: continue
-            with open(result_file, "w") as f:
-                json.dump({{"success": True, "cookies": cookies_str,
-                            "username": unas_username or {repr(username)},
-                            "debug_vals": vals, "debug_url": page.url}}, f)
-        else:
-            error_msg = "Login fallido"
-            for sel in [".alert", ".alert-danger", "[class*=alert]"]:
-                try:
-                    el = page.query_selector(sel)
-                    if el:
-                        txt = el.inner_text().strip()
-                        if txt: error_msg = txt[:300]; break
-                except: continue
-            with open(result_file, "w") as f:
-                json.dump({{"success": False, "error": error_msg, "debug_vals": vals}}, f)
-
-        context.close(); browser.close()
-
-except Exception as e:
-    import traceback
-    with open(os.path.join(session_dir, "result.json"), "w") as f:
-        json.dump({{"success": False, "error": str(e),
-                    "traceback": traceback.format_exc()}}, f)
-'''
-
-        script_path = os.path.join(session_dir, 'pw_session.py')
-        with open(script_path, 'w', encoding='utf-8') as f:
-            f.write(script)
-
-        # Lanzar proceso en background (no bloqueante)
-        self._session_proc = subprocess.Popen(
-            [sys.executable, script_path],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-
-        # Esperar a que Playwright esté listo (max 30s)
-        deadline = time.time() + 30
-        while time.time() < deadline:
-            if os.path.exists(ready_file):
-                break
-            time.sleep(0.3)
-        else:
-            self._session_proc.terminate()
-            return {"success": False, "error": "Timeout cargando la página de UNAS"}
-
-        # Leer imagen del CAPTCHA
-        if not os.path.exists(captcha_file):
-            return {"success": False, "error": "No se generó imagen del CAPTCHA"}
-
-        with open(captcha_file, 'rb') as f:
-            captcha_b64 = __import__('base64').b64encode(f.read()).decode()
-
-        return {"success": True, "captcha_image": captcha_b64}
-
-    def complete_login_with_captcha(self, username: str, password: str, captcha_solution: str) -> Dict:
-        """Envía la solución del CAPTCHA al proceso Playwright que sigue vivo."""
-        if not self._session_dir:
-            return {"success": False, "error": "No hay sesión activa. Inicia el proceso nuevamente."}
-
-        command_file = os.path.join(self._session_dir, 'command.json')
-        result_file = os.path.join(self._session_dir, 'result.json')
-
-        # Enviar solución al proceso
-        with open(command_file, 'w') as f:
-            json.dump({"captcha": captcha_solution}, f)
-
-        # Esperar resultado (max 30s)
-        deadline = time.time() + 30
-        while time.time() < deadline:
-            if os.path.exists(result_file):
-                try:
-                    with open(result_file) as f:
-                        result = json.load(f)
-                    print(f"[ACADEMICO debug_vals]: {result.get('debug_vals')}")
-                    print(f"[ACADEMICO debug_url]: {result.get('debug_url')}")
-                    return result
+                    json_resp = resp.json()
+                    error_msg = json_resp.get("message", error_msg)
                 except:
-                    pass
-            time.sleep(0.4)
-
-        # Timeout
-        if self._session_proc:
-            self._session_proc.terminate()
-        return {"success": False, "error": "Timeout esperando resultado del login"}
+                    # Intentar extraer de HTML
+                    soup = BeautifulSoup(resp.text, 'html.parser')
+                    alert = soup.find('div', class_='alert-danger') or soup.find('div', class_='alert')
+                    if alert:
+                        error_msg = alert.get_text(strip=True)
+                
+                return {"success": False, "error": error_msg}
+            
+            # Éxito: construir string de cookies
+            cookies_dict = session.cookies.get_dict()
+            cookies_str = "; ".join([f"{k}={v}" for k, v in cookies_dict.items()])
+            
+            # Limpiar sesión del diccionario (ya no se necesita)
+            del SESSIONS_DICT[session_id]
+            
+            return {
+                "success": True,
+                "cookies": cookies_str,
+                "username": username
+            }
+            
+        except requests.RequestException as e:
+            return {"success": False, "error": f"Error de conexión: {str(e)}"}
+        except Exception as e:
+            return {"success": False, "error": f"Error inesperado: {str(e)}"}
+        finally:
+            # Cleanup siempre, aunque falle
+            if session_id in SESSIONS_DICT:
+                del SESSIONS_DICT[session_id]
 
     def set_cookies(self, cookies_str: str):
         self._cookies = cookies_str

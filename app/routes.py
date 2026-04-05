@@ -756,6 +756,11 @@ def academico_login():
         flash(f"Error: {result['error']}", "error")
         return redirect(url_for("academico"))
     
+    # Guardar session_id y usertoken para la segunda fase
+    session["_academico_session_id"] = result.get("session_id")
+    session["_academico_usertoken"] = result.get("usertoken", "")
+    session.modified = True
+    
     # Pasar imagen del captcha al template
     return render_template("academico.html",
         session_valid=False,
@@ -773,19 +778,23 @@ def academico_submit_captcha():
     captcha_solution = request.form.get("captcha_solution", "").strip()
     unas_user = session.get("_tmp_unas_user", "")
     unas_pass = session.get("_tmp_unas_pass", "")
+    session_id = session.get("_academico_session_id", "")
+    usertoken = session.get("_academico_usertoken", "")
     
-    if not captcha_solution or not unas_user:
+    if not captcha_solution or not unas_user or not session_id:
         flash("Sesión expirada. Intenta nuevamente.", "error")
         return redirect(url_for("academico"))
     
     result = app.academico_service.complete_login_with_captcha(
-        unas_user, unas_pass, captcha_solution
+        unas_user, unas_pass, captcha_solution, session_id, usertoken
     )
     
     print(f"[ACADEMICO] resultado: {result}")
     
     session.pop("_tmp_unas_user", None)
     session.pop("_tmp_unas_pass", None)
+    session.pop("_academico_session_id", None)
+    session.pop("_academico_usertoken", None)
     
     if result["success"]:
         app.academico_service.set_cookies(result["cookies"])
@@ -800,6 +809,9 @@ def academico_submit_captcha():
         new_captcha = app.academico_service.start_login_session(unas_user, unas_pass)
         session["_tmp_unas_user"] = unas_user
         session["_tmp_unas_pass"] = unas_pass
+        session["_academico_session_id"] = new_captcha.get("session_id")
+        session["_academico_usertoken"] = new_captcha.get("usertoken", "")
+        session.modified = True
         return render_template("academico.html",
             session_valid=False, academico_user=None,
             pages=app.academico_service.get_pages(),

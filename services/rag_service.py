@@ -324,6 +324,46 @@ Responde solo: GREETING, METADATA o CONTENT"""
             answer += f"- {d['filename']} ({status_label})\n"
         return {"answer": answer, "sources": []}
 
+    def _clean_response(self, text: str) -> str:
+        """
+        Limpia y normaliza el formato de la respuesta del LLM.
+        Elimina asteriscos sueltos, normaliza markdown y mejora legibilidad.
+        """
+        if not text:
+            return text
+            
+        # 1. Eliminar patrones de asteriscos sueltos (*** o ** sin contenido)
+        text = re.sub(r'\*\*\*+', '', text)  # *** → vacío
+        text = re.sub(r'\*\*\s*\*\*', '', text)  # ** ** → vacío
+        
+        # 2. Normalizar negritas: **texto** con espacios internos extra
+        text = re.sub(r'\*\*\s+([^*]+?)\s+\*\*', r'**\1**', text)
+        
+        # 3. Eliminar asteriscos sueltos al inicio/final de líneas
+        lines = text.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            # Quitar ** o * sueltos al inicio/final
+            line = re.sub(r'^[\*\s]+', '', line)
+            line = re.sub(r'[\*\s]+$', '', line)
+            cleaned_lines.append(line)
+        text = '\n'.join(cleaned_lines)
+        
+        # 4. Normalizar espacios múltiples
+        text = re.sub(r' {2,}', ' ', text)
+        
+        # 5. Eliminar líneas vacías múltiples (más de 2 seguidas)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        # 6. Limpiar espacios alrededor de puntuación
+        text = re.sub(r'\s+([.,;:!?])', r'\1', text)
+        text = re.sub(r'([.,;:!?])\s+', r'\1 ', text)
+        
+        # 7. Strip final
+        text = text.strip()
+        
+        return text
+
     def generate_response(self, question: str, top_k: int = 10, document_id: str = None, chat_history: list = None) -> Dict:
         # Limpiar pregunta de comillas y puntos extras del frontend
         question = question.strip().strip('"\'.,')
@@ -448,6 +488,10 @@ El usuario está preguntando específicamente sobre este documento. Analiza TODO
             response.raise_for_status()
             data = response.json()
             final_answer = data.get("message", {}).get("content", "Error: No se recibió respuesta válida.")
+            
+            # LIMPIAR FORMATO: Eliminar *** y normalizar markdown
+            final_answer = self._clean_response(final_answer)
+            
         except requests.exceptions.Timeout:
             final_answer = "⏱️ El procesamiento tardó demasiado. Intenta con una pregunta más específica o espera un momento."
         except Exception as e:

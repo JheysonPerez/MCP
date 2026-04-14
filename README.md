@@ -64,7 +64,95 @@ El sistema utiliza una arquitectura de persistencia robusta y moderna:
 - **Exportación:** Descarga de documentos generados en Markdown (.md), DOCX y PDF.
 - **Historial:** Registro y gestión de todos los documentos creados por IA.
 
-## 5. Arquitectura de Servicios
+## 5. Arquitectura MCP (Model Context Protocol)
+
+El sistema implementa un **servidor MCP completo** que expone todas las funcionalidades RAG como herramientas estandarizadas, permitiendo que cualquier cliente MCP (Claude Desktop, IDEs, etc.) interactúe con el repositorio documental.
+
+### ¿Qué es MCP?
+
+**Model Context Protocol (MCP)** es un protocolo estándar que permite a los LLMs acceder a herramientas y datos externos de manera segura y estructurada. Nuestro servidor MCP convierte todo el sistema RAG en un conjunto de tools accesibles.
+
+### Servidor MCP (`mcp_server/`)
+
+```
+mcp_server/
+├── server.py          # Definición de tools MCP
+├── dependencies.py    # Inyección de dependencias
+└── __init__.py
+```
+
+**Inicio del servidor MCP:**
+```bash
+# Modo stdio (para Claude Desktop)
+python -m mcp_server.server
+
+# O usando el módulo
+python mcp_server/server.py
+```
+
+### MCP Tools Disponibles
+
+| Tool | Descripción | Parámetros Principales |
+|------|-------------|------------------------|
+| **`listar_documentos`** | Lista documentos con filtros avanzados | `estado`, `limite`, `tipo_fuente` |
+| **`consultar_documentos`** | Consulta RAG al repositorio | `consulta`, `documento_id`, `incluir_fuentes`, `top_k` |
+| **`resumir_documento`** | Genera resumen de documento específico | `document_id_name` |
+| **`estadisticas_repositorio`** | Estadísticas completas del sistema | `incluir_detalle_documentos`, `incluir_estadisticas_consultas` |
+| **`eliminar_documento`** | Elimina documento (soft/hard delete) | `doc_id`, `modo` |
+| **`reindexar_documento`** | Fuerza reindexación semántica | `doc_id` |
+| **`agregar_fuente_web`** | Indexa URL como documento | `url`, `verificar_duplicados`, `indexar_inmediatamente` |
+| **`generar_documento`** | Genera documento con IA | `prompt`, `tipo`, `modo`, `documento_contexto` |
+
+### Ejemplos de Uso MCP
+
+**Consultar documentos:**
+```python
+from mcp_server.server import consultar_documentos
+
+resultado_json = consultar_documentos(
+    consulta="¿Qué trámites ofrece la UNAS?",
+    documento_id="31",
+    incluir_fuentes=True,
+    top_k=10
+)
+# Retorna JSON con respuesta, fuentes y metadatos
+```
+
+**Listar documentos filtrados:**
+```python
+from mcp_server.server import listar_documentos
+
+docs_json = listar_documentos(
+    estado="indexado",
+    limite=20,
+    tipo_fuente="web"
+)
+# Retorna JSON con lista de documentos web indexados
+```
+
+**Agregar fuente web:**
+```python
+from mcp_server.server import agregar_fuente_web
+
+resultado = agregar_fuente_web(
+    url="https://unas.edu.pe/transparencia",
+    verificar_duplicados=True,
+    indexar_inmediatamente=True
+)
+```
+
+### Integración Web + MCP
+
+La interfaz web Flask (`app/routes.py`) ahora consume las **MCP Tools** directamente:
+
+- `/consultar` → usa `consultar_documentos()`
+- `/documentos` → usa `listar_documentos()`
+- `/web/add` → usa `agregar_fuente_web()`
+- `/generar/crear` → usa `generar_documento()`
+
+Esto unifica la lógica: tanto la web como clientes MCP externos usan las mismas herramientas.
+
+## 6. Arquitectura de Servicios
 
 El sistema está organizado en servicios modulares:
 - **`RagService`:** Orquestador principal del pipeline RAG.
@@ -74,8 +162,10 @@ El sistema está organizado en servicios modulares:
 - **`ChunkService`:** Fragmentación inteligente con contexto.
 - **`EmbeddingService`:** Generación de embeddings.
 - **`DocumentService`:** Gestión de archivos y procesamiento.
+- **`WebScraperService`:** Extracción de contenido web.
+- **`GenerationService`:** Generación de documentos con IA.
 
-## 6. Funcionamiento Interno (IA & RAG)
+## 7. Funcionamiento Interno (IA & RAG)
 1.  **Ingesta:** El usuario sube un archivo; el sistema detecta su tipo y lo guarda en `uploads/`.
 2.  **Extracción:** `DocumentService` limpia el texto. Si el PDF no tiene texto, activa automáticamente el pipeline de OCR.
 3.  **Fragmentación (Chunking):** El texto se divide en segmentos lógicos con contexto de sección para análisis preciso.
@@ -86,7 +176,7 @@ El sistema está organizado en servicios modulares:
     - Re-ranking con LLM para seleccionar los 10 mejores.
     - Generación de respuesta contextualizada.
 
-## 7. Instalación y Ejecución
+## 8. Instalación y Ejecución
 
 ### Requisitos Previos
 - **Python 3.10+**
@@ -230,7 +320,7 @@ Acceder a: http://127.0.0.1:5000
 
 ---
 
-## 8. Schema y Migraciones de Base de Datos
+## 9. Schema y Migraciones de Base de Datos
 
 ### Schema Completo (`db/schema.sql`)
 
@@ -294,7 +384,7 @@ El script detectará automáticamente qué falta y lo creará.
 
 ---
 
-## 7. Limitaciones y Roadmap
+## 10. Limitaciones y Roadmap
 
 ### Roadmap (Completado ✅)
 - ✅ **pgvector:** Indexación persistente y rápida en PostgreSQL.
@@ -306,9 +396,13 @@ El script detectará automáticamente qué falta y lo creará.
 - ✅ **Búsqueda Híbrida:** Combinación vectorial + BM25.
 - ✅ **Re-ranking:** Reordenamiento inteligente con LLM.
 - ✅ **Chunking Inteligente:** Detección de secciones y contexto.
+- ✅ **Web Scraping:** Extracción e indexación de contenido web.
+- ✅ **MCP Server:** Protocolo Model Context para integración con clientes MCP (Claude Desktop, IDEs).
+- ✅ **MCP Tools:** 8 herramientas expuestas vía MCP (`consultar_documentos`, `listar_documentos`, etc.).
+- ✅ **Markdown Rendering:** Respuestas RAG renderizadas como HTML con headers, listas y formato limpio.
+- ✅ **Sanitización XSS:** Protección contra XSS en respuestas markdown usando `bleach`.
 
 ### Roadmap (Pendiente 🚀)
-- ✅ **Web Scraping:** Extracción e indexación de contenido web.
 - ⚠️ OCR para imágenes JPG/PNG sueltas.
 - ⚠️ Deploy producción Ubuntu con systemd/nginx.
 - ⚠️ Benchmark de evaluación RAG (RAGAS/TruLens).

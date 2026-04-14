@@ -660,6 +660,108 @@
             75% { box-shadow: 0px -.2em 0 0 currentcolor; }
             87% { box-shadow: .2em -.2em 0 0 currentcolor; }
         }
+
+        /* ── RAG RESPONSE MARKDOWN STYLES ─────────────────────────────── */
+        .rag-response {
+            line-height: 1.6;
+        }
+
+        .rag-response h1, .rag-response h2, .rag-response h3,
+        .rag-response h4, .rag-response h5, .rag-response h6 {
+            margin: 1rem 0 0.5rem 0;
+            font-weight: 600;
+            color: var(--color-text-main);
+        }
+
+        .rag-response h1 { font-size: 1.4rem; }
+        .rag-response h2 { font-size: 1.25rem; }
+        .rag-response h3 { font-size: 1.1rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.25rem; }
+        .rag-response h4 { font-size: 1rem; color: var(--color-text-muted); }
+        .rag-response h5 { font-size: 0.9rem; }
+        .rag-response h6 { font-size: 0.85rem; font-weight: 500; }
+
+        .rag-response p {
+            margin: 0.5rem 0;
+        }
+
+        .rag-response ul, .rag-response ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+
+        .rag-response li {
+            margin: 0.25rem 0;
+        }
+
+        .rag-response strong, .rag-response b {
+            font-weight: 600;
+            color: var(--color-text-main);
+        }
+
+        .rag-response em, .rag-response i {
+            font-style: italic;
+        }
+
+        .rag-response code {
+            background-color: #f3f4f6;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.875rem;
+        }
+
+        .rag-response pre {
+            background-color: #f3f4f6;
+            padding: 0.75rem;
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+
+        .rag-response pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .rag-response blockquote {
+            border-left: 3px solid var(--color-border);
+            padding-left: 1rem;
+            margin: 0.5rem 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+
+        .rag-response a {
+            color: var(--color-primary);
+            text-decoration: underline;
+        }
+
+        .rag-response a:hover {
+            color: var(--color-primary-hover);
+        }
+
+        .rag-response hr {
+            border: none;
+            border-top: 1px solid var(--color-border);
+            margin: 1rem 0;
+        }
+
+        .rag-response table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.5rem 0;
+        }
+
+        .rag-response th, .rag-response td {
+            border: 1px solid var(--color-border);
+            padding: 0.5rem;
+            text-align: left;
+        }
+
+        .rag-response th {
+            background-color: var(--color-bg);
+            font-weight: 600;
+        }
     </style>
 </head>
 

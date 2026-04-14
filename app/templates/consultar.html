@@ -240,7 +240,7 @@
             </div>
             <div class="chat-bubble bubble-assistant">
                 <div class="bubble-meta" style="color: var(--color-primary);">Asistente EPIIS</div>
-                <div style="white-space: pre-wrap;">{{ turno.respuesta }}</div>
+                <div class="rag-response">{{ turno.respuesta|safe }}</div>
             </div>
         {% endfor %}
 
@@ -258,7 +258,7 @@
                 </div>
                 {% endif %}
 
-                <div style="white-space: pre-wrap; margin-top: 0.5rem;">{{ turno_actual.respuesta }}</div>
+                <div class="rag-response" style="margin-top: 0.5rem;">{{ turno_actual.respuesta|safe }}</div>
 
                 {% if turno_actual.fuentes %}
                 <div class="sources-inline">

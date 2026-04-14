@@ -6,8 +6,21 @@ from pathlib import Path
 import os
 import re
 from datetime import datetime, timezone
+import json
 
 from .decorators import login_required, admin_required
+from .utils import render_markdown_safe
+
+# Importar tools MCP para usarlas desde la web
+from mcp_server.server import (
+    consultar_documentos,
+    listar_documentos,
+    generar_documento,
+    agregar_fuente_web,
+    eliminar_documento,
+    reindexar_documento,
+    estadisticas_repositorio
+)
 
 ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt', 'jpg', 'jpeg', 'png'}
 
@@ -75,11 +88,23 @@ def _get_stats():
 @app.route("/documentos", methods=["GET"])
 @login_required
 def documentos():
-    docs = app.db_conn.execute_query("""
-        SELECT id, filename, created_at, processing_status, is_indexed, chunk_count 
-        FROM documents 
-        ORDER BY created_at DESC;
-    """, fetch=True)
+    # Usar tool MCP listar_documentos
+    resultado_json = listar_documentos(estado="all", limite=100, tipo_fuente="all")
+    resultado = json.loads(resultado_json)
+
+    if resultado.get("status") == "success":
+        docs = resultado.get("data", [])
+        # Convertir fechas de string a datetime para el template
+        for doc in docs:
+            if doc.get("created_at") and isinstance(doc["created_at"], str):
+                try:
+                    doc["created_at"] = datetime.fromisoformat(doc["created_at"])
+                except (ValueError, TypeError):
+                    pass
+    else:
+        docs = []
+        flash(f"Error al cargar documentos: {resultado.get('message', 'Error desconocido')}", "error")
+
     return render_template("documentos.html", documentos=docs, username=session.get("username"), user_role=session.get("user_role"))
 
 
@@ -125,24 +150,28 @@ def upload_document():
 @app.route("/documentos/reindex/<int:doc_id>", methods=["POST"])
 @admin_required
 def reindex_document(doc_id):
+    # Usar tool MCP reindexar_documento
+    resultado_json = reindexar_documento(doc_id=doc_id)
+    resultado = json.loads(resultado_json)
     
-    try:
-        app.rag_service.reindex_document(doc_id)
-        flash(f"Documento #{doc_id} reindexado con éxito.", "success")
-    except Exception as e:
-        flash(f"Error al reindexar: {str(e)}", "error")
+    if resultado.get("status") == "success":
+        flash(resultado.get("mensaje", f"Documento #{doc_id} reindexado con éxito."), "success")
+    else:
+        flash(f"Error al reindexar: {resultado.get('message', 'Error desconocido')}", "error")
         
     return redirect(url_for("documentos"))
 
 @app.route("/documentos/delete/<int:doc_id>", methods=["POST"])
 @admin_required
 def delete_document(doc_id):
+    # Usar tool MCP eliminar_documento con modo hard
+    resultado_json = eliminar_documento(doc_id=doc_id, modo="hard")
+    resultado = json.loads(resultado_json)
     
-    try:
-        app.rag_service.delete_document(doc_id)
-        flash(f"Documento #{doc_id} eliminado correctamente.", "success")
-    except Exception as e:
-        flash(f"Error al eliminar: {str(e)}", "error")
+    if resultado.get("status") == "success":
+        flash(resultado.get("mensaje", f"Documento #{doc_id} eliminado correctamente."), "success")
+    else:
+        flash(f"Error al eliminar: {resultado.get('message', 'Error desconocido')}", "error")
         
     return redirect(url_for("documentos"))
 
@@ -246,32 +275,32 @@ def consultar():
                         filtro_doc = None
 
             try:
-                # Aumentado top_k=10 para recuperar más contexto del documento
-                resultado = app.rag_service.generate_response(
-                    pregunta, top_k=10, document_id=filtro_doc,
-                    chat_history=chat_history
+                # Usar tool MCP consultar_documentos
+                resultado_json = consultar_documentos(
+                    consulta=pregunta,
+                    documento_id=filtro_doc,
+                    incluir_fuentes=True,
+                    top_k=10
                 )
-                respuesta_rag = resultado["answer"].strip()
+                resultado = json.loads(resultado_json)
                 
-                # Deduplicar fuentes por filename, manteniendo el de mayor score
-                sources = resultado.get("sources", [])
-                seen_files = {}
-                for source in sources:
-                    fname = source.get("filename", "")
-                    if fname not in seen_files or source.get("score", 0) > seen_files[fname].get("score", 0):
-                        seen_files[fname] = source
-                fuentes = list(seen_files.values())
-                
-                pregunta_hecha = pregunta
+                if resultado.get("status") == "success":
+                    respuesta_raw = resultado.get("respuesta", "").strip()
+                    fuentes = resultado.get("fuentes", [])
+                    pregunta_hecha = pregunta
+                    
+                    # Procesar markdown a HTML seguro para mostrar
+                    respuesta_rag = render_markdown_safe(respuesta_raw)
 
-                # Actualizar historial en sesión para la PRÓXIMA consulta
-                # (No agregamos el turno actual al chat_history que enviamos al template)
-                chat_history.append({
-                    "pregunta": pregunta,
-                    "respuesta": respuesta_rag
-                })
-                session["chat_history"] = chat_history[-5:]
-                session.modified = True
+                    # Actualizar historial en sesión para la PRÓXIMA consulta (guardar raw)
+                    chat_history.append({
+                        "pregunta": pregunta,
+                        "respuesta": respuesta_raw
+                    })
+                    session["chat_history"] = chat_history[-5:]
+                    session.modified = True
+                else:
+                    flash(f"Error en consulta: {resultado.get('message', 'Error desconocido')}", "error")
 
             except Exception as e:
                 flash(f"Error al consultar el sistema RAG: {str(e)}", "error")
@@ -283,13 +312,21 @@ def consultar():
         "fuentes": fuentes
     } if pregunta_hecha else None
 
+    # Procesar chat_history para convertir markdown a HTML en las respuestas
+    chat_history_html = []
+    for turno in (chat_history[:-1] if turno_actual else chat_history):
+        chat_history_html.append({
+            "pregunta": turno["pregunta"],
+            "respuesta": render_markdown_safe(turno["respuesta"])
+        })
+
     return render_template(
         "consultar.html",
         turno_actual=turno_actual,
         scope=scope,
         doc_seleccionado=doc_seleccionado,
         documentos_lista=documentos_lista,
-        chat_history=chat_history[:-1] if turno_actual else chat_history, # Evitar mostrar el último si ya está en turno_actual
+        chat_history=chat_history_html,  # Historial con respuestas procesadas a HTML
         username=session.get("username")
     )
 
@@ -376,23 +413,33 @@ def generar_crear():
         flash("Debes ingresar instrucciones para generar el documento.", "error")
         return redirect(url_for("generar"))
     
-    source_doc_ids = [int(source_doc_id)] if source_doc_id else []
-    
+    # Usar tool MCP generar_documento
     try:
-        resultado = app.generation_service.generate(
-            prompt=prompt,
-            doc_type=doc_type,
-            mode=mode,
-            source_doc_ids=source_doc_ids,
-            doc_format=doc_format,
-            user_id=session.get("user_id")
-        )
+        # Mapear modo de la web a modo del MCP
+        modo_mcp = "prompt_libre"
+        if mode == "source_doc":
+            modo_mcp = "basado_documento"
+        elif mode == "prompt_libre":
+            modo_mcp = "basado_repositorio"
         
-        if resultado["success"]:
-            flash(f"Documento generado: {resultado['title']}", "success")
-            return redirect(url_for("generar_ver", gen_id=resultado["id"]))
+        resultado_json = generar_documento(
+            prompt=prompt,
+            tipo=doc_type,
+            modo=modo_mcp,
+            documento_base_id=source_doc_id if source_doc_id else None
+        )
+        resultado = json.loads(resultado_json)
+        
+        if resultado.get("status") == "success":
+            gen_id = resultado.get("id_guardado")
+            if gen_id:
+                flash(f"Documento generado exitosamente", "success")
+                return redirect(url_for("generar_ver", gen_id=gen_id))
+            else:
+                # Si no se guardó pero se generó, mostrar el contenido
+                flash("Documento generado (sin guardar en historial)", "success")
         else:
-            flash(f"Error al generar: {resultado['error']}", "error")
+            flash(f"Error al generar: {resultado.get('message', 'Error desconocido')}", "error")
     except Exception as e:
         flash(f"Error inesperado: {str(e)}", "error")
     
@@ -723,71 +770,34 @@ def web_add():
     auto_refresh = request.form.get('auto_refresh') == 'on'
     frequency = request.form.get('frequency', 'manual')
     
-    scraper = app.web_scraper_service
-    
-    if not scraper.is_valid_url(url):
-        flash('URL inválida. Asegúrate de incluir http:// o https://', 'error')
-        return redirect(url_for('web_sources'))
-    
-    # Verificar si la URL ya existe (normalizar URL para comparación)
-    existing = app.db_conn.execute_query(
-        "SELECT id, filename FROM documents WHERE source_url = %s OR original_path = %s LIMIT 1",
-        (url, url),
-        fetch=True
-    )
-    if existing:
-        flash(f'Esta URL ya está indexada como "{existing[0]["filename"]}". Elimínala primero si deseas re-indexarla.', 'warning')
-        return redirect(url_for('web_sources'))
-    
+    # Usar tool MCP agregar_fuente_web
     try:
-        result = scraper.scrape_url(url)
-        if not result['success']:
-            flash(f'Error al extraer: {result["error"]}', 'error')
-            return redirect(url_for('web_sources'))
-        
-        # Guardar como archivo .txt procesado
-        import uuid, os
-        safe_name = re.sub(r'[^a-z0-9]', '_', url.lower())[:40]
-        filename = f"web_{safe_name}.txt"
-        safe_uuid = uuid.uuid4().hex[:8]
-        processed_name = f"{safe_uuid}_{filename}"
-        processed_path = os.path.join("data/processed", processed_name)
-        
-        os.makedirs("data/processed", exist_ok=True)
-        with open(processed_path, 'w', encoding='utf-8') as f:
-            f.write(result['content'])
-        
-        # Registrar en DB
-        user_id = app.persistence.create_or_get_user(
-            session.get('username'), session.get('username') + '@local'
+        resultado_json = agregar_fuente_web(
+            url=url,
+            verificar_duplicados=True,
+            indexar_inmediatamente=True
         )
-        doc_id = app.persistence.register_document(
-            filename=result['title'][:100],
-            original_path=url,
-            processed_path=os.path.abspath(processed_path),
-            user_id=user_id
-        )
-        app.persistence.update_document_status(
-            doc_id,
-            processing_status='completed',
-            processed_path=os.path.abspath(processed_path)
-        )
+        resultado = json.loads(resultado_json)
         
-        # Actualizar campos web
-        conn = app.db_conn.get_connection()
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE documents SET source_url=%s, source_type='web',
-                auto_refresh=%s, refresh_frequency=%s, last_scraped_at=NOW()
-                WHERE id=%s
-            """, (url, auto_refresh, frequency, doc_id))
-        conn.commit()
-        conn.close()
-        
-        # Indexar
-        app.rag_service.index_document(doc_id, os.path.abspath(processed_path))
-        flash(f'"{result["title"]}" indexado correctamente ({result["word_count"]} palabras)', 'success')
-        
+        if resultado.get("status") == "success":
+            doc_id = resultado.get("doc_id")
+            titulo = resultado.get("titulo", "URL")
+            caracteres = resultado.get("caracteres_extraidos", 0)
+            
+            # Actualizar campos adicionales de web en DB (auto_refresh, frequency)
+            conn = app.db_conn.get_connection()
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE documents SET auto_refresh=%s, refresh_frequency=%s, last_scraped_at=NOW()
+                    WHERE id=%s
+                """, (auto_refresh, frequency, doc_id))
+            conn.commit()
+            conn.close()
+            
+            flash(f'"{titulo}" indexado correctamente ({caracteres} caracteres)', 'success')
+        else:
+            flash(f'Error: {resultado.get("message", "Error desconocido")}', 'error')
+            
     except Exception as e:
         flash(f'Error: {str(e)}', 'error')
     

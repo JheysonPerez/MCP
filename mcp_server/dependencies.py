@@ -11,12 +11,15 @@ from services.chunk_service import ChunkService
 from services.embedding_service import EmbeddingService
 from services.retrieval_service import RetrievalService
 from services.rag_service import RagService
+from services.web_scraper_service import WebScraperService
+from services.generation_service import GenerationService
 
 # Instanciamos dependencias base para inyectar globalmente a los tools de MCP
 db_conn = DatabaseConnection()
 persistence = PersistenceService(db=db_conn)
 
 document_service = DocumentService(persistence_service=persistence)
+web_scraper_service = WebScraperService()
 
 # Asumimos que los documentos ya están ingestados para el contexto de consulta base.
 # Si el backend sube nuevos, simplemente se irán acumulando en DB y memoria.
@@ -24,7 +27,16 @@ chunk_service = ChunkService(chunk_size=300, overlap=50)
 embedding_service = EmbeddingService()
 retrieval_service = RetrievalService(embedding_service=embedding_service)
 
-rag_service = RagService(retrieval_service=retrieval_service, persistence_service=persistence)
+generation_service = GenerationService(
+    retrieval_service=retrieval_service,
+    persistence_service=persistence
+)
+
+rag_service = RagService(
+    retrieval_service=retrieval_service,
+    chunk_service=chunk_service,
+    persistence_service=persistence
+)
 
 # Como el in-memory list (retrieval_service.chunks_db) arranca vacío si no cargamos los archivos de los folders,
 # vamos a hacer un reload mock-up automático al iniciar el servidor (MVP).

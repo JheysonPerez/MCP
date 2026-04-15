@@ -245,12 +245,13 @@ class RagService:
         q = self._normalize_text(question)
         
         # Nivel 1 — Metadata PRIMERO (tiene prioridad sobre saludos)
+        # FIX: Negative lookahead para excluir preguntas de contenido ("de qué habla/trata/contiene")
         metadata_patterns = [
-            r'\b(qu[eé]|cu[aá]les?|cu[aá]ntos?)\b.{0,25}\b(documentos?|archivos?)\b',
-            r'\b(documentos?|archivos?)\b.{0,20}\b(indexados?|procesados?|disponibles?|listos?)',
-            r'\b(listar?|mostrar?|ver|dame)\b.{0,15}\b(documentos?|archivos?)',
-            r'\brepositorio\b',
-            r'\bqu[eé]\s+(tienes?|hay)\s+(disponible|indexado)',
+            r'\b(qu[eé]|cu[aá]les?|cu[aá]ntos?)\b(?!.{0,30}\b(habla|trata|contiene|dice|sobre|acerca|explica))\b.{0,25}\b(documentos?|archivos?)\b',
+            r'\b(documentos?|archivos?)\b(?!.{0,30}\b(habla|trata|contiene|dice|sobre|acerca|explica))\b.{0,20}\b(indexados?|procesados?|disponibles?|listos?)',
+            r'\b(listar?|mostrar?|ver|dame)\b.{0,15}\b(documentos?|archivos?)\b(?!.{0,30}\b(habla|trata|contiene|dice|sobre))',
+            r'\brepositorio\b(?!.{0,30}\b(habla|trata|contiene|dice|sobre))',
+            r'\bqu[eé]\s+(tienes?|hay)\s+(disponible|indexado)(?!.{0,30}\b(habla|trata|contiene|dice|sobre))',
         ]
         for p in metadata_patterns:
             if re.search(p, q):
@@ -276,6 +277,10 @@ class RagService:
             r'(fecha\s+(de\s+)?(emision|vencimiento|caducidad|nacimiento))',
             r'\b(dni|ruc|telefono|celular|correo|domicilio)\b',
             r'\b(cu[aá]l|qui[eé]n|cu[aá]nto|d[oó]nde)\b',
+            # NUEVO: Capturar antes de que lleguen a metadata
+            r'\b(de\s+qu[eé])\b.{0,20}\b(habla|trata|tratan)\b.{0,20}\b(documentos?|archivos?|texto)\b',
+            r'\b(sobre\s+qu[eé])\b.{0,20}\b(habla|trata|tratan)\b.{0,20}\b(documentos?|archivos?|texto)\b',
+            r'\b(documentos?|archivos?)\b.{0,15}\b(habla|trata|dice|contiene|explica)\b',
         ]
         for p in content_patterns:
             if re.search(p, q):
@@ -377,7 +382,9 @@ Responde solo: GREETING, METADATA o CONTENT"""
                 "sources": []
             }
         
-        if intent == 'metadata':
+        # FIX: Solo procesar como metadata si NO hay un document_id explícito
+        # Si hay filtro de documento, forzar RAG aunque el router diga metadata
+        if intent == 'metadata' and not document_id:
             return self._handle_metadata_query()
         
         # --- DETECCIÓN DE CONTEXTO AUTOMÁTICO ---

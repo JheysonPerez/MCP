@@ -38,6 +38,40 @@
     <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 0.4rem;">
         <i class="bi bi-folder2-open" style="color: #1d4ed8;"></i> Documentos registrados
     </h5>
+
+    <!-- BARRA DE BÚSQUEDA INTELIGENTE -->
+    <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+        <input
+            type="text"
+            id="doc-search-input"
+            placeholder="Buscar por nombre, tipo, año, tema..."
+            autocomplete="off"
+            style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem; margin-bottom: 0.75rem; box-sizing: border-box;"
+        />
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+            <select id="filter-type" style="padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.8rem; background: #fff; cursor: pointer;">
+                <option value="">Todos los tipos</option>
+                <option value="certificado">Certificado</option>
+                <option value="carta">Carta</option>
+                <option value="decreto">Decreto</option>
+                <option value="resolución">Resolución</option>
+                <option value="informe">Informe</option>
+                <option value="matriz">Matriz</option>
+                <option value="proyecto">Proyecto</option>
+                <option value="web">Web</option>
+                <option value="otro">Otro</option>
+            </select>
+            <select id="filter-year" style="padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.8rem; background: #fff; cursor: pointer;">
+                <option value="">Todos los años</option>
+                {% set years = documentos | map(attribute='doc_year') | select('ne', None) | unique | sort(reverse=True) | list %}
+                {% for year in years %}
+                <option value="{{ year }}">{{ year }}</option>
+                {% endfor %}
+            </select>
+            <span id="search-count" style="font-size: 0.8rem; color: #6b7280; margin-left: auto;"></span>
+        </div>
+    </div>
+
     {% if documentos %}
     <div style="overflow-x: auto;">
         <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
@@ -52,10 +86,23 @@
             </thead>
             <tbody>
                 {% for doc in documentos %}
-                <tr style="border-bottom: 1px solid #f3f4f6;">
+                <tr style="border-bottom: 1px solid #f3f4f6;"
+                    data-filename="{{ doc.filename | lower }}"
+                    data-type="{{ doc.doc_type or '' }}"
+                    data-year="{{ doc.doc_year or '' }}"
+                    data-keywords="{{ doc.keywords | join(' ') | lower if doc.keywords else '' }}"
+                    data-summary="{{ doc.summary | lower if doc.summary else '' }}"
+                >
                     <td style="padding: 0.85rem 0.75rem;">
                         <div style="font-weight: 600; color: #111827; margin-bottom: 0.1rem;">{{ doc.filename }}</div>
-                        <div style="font-size: 0.75rem; color: #9ca3af;">ID: #{{ doc.id }} · {{ doc.created_at.strftime('%d/%m/%Y %H:%M') if doc.created_at else '—' }}</div>
+                        <div style="font-size: 0.75rem; color: #9ca3af;">
+                            ID: #{{ doc.id }} · {{ doc.created_at.strftime('%d/%m/%Y %H:%M') if doc.created_at else '—' }}
+                            {% if doc.doc_type %} · <span style="background: #e0e7ff; color: #4338ca; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 600;">{{ doc.doc_type }}</span>{% endif %}
+                            {% if doc.doc_year %} · {{ doc.doc_year }}{% endif %}
+                        </div>
+                        {% if doc.summary %}
+                        <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem; font-style: italic;">{{ doc.summary[:80] }}{% if doc.summary|length > 80 %}...{% endif %}</div>
+                        {% endif %}
                     </td>
                     <td style="padding: 0.85rem 0.75rem; text-align: center;">
                         {% if doc.processing_status == 'completed' %}
@@ -129,5 +176,57 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+const searchInput = document.getElementById('doc-search-input');
+const filterType = document.getElementById('filter-type');
+const filterYear = document.getElementById('filter-year');
+const countLabel = document.getElementById('search-count');
+
+function normalizar(texto) {
+    if (!texto) return '';
+    return texto.normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase();
+}
+
+function filtrar() {
+    const query = normalizar(searchInput.value.trim());
+    const tipo = filterType.value;
+    const year = filterYear.value;
+
+    const filas = document.querySelectorAll('tr[data-filename]');
+    let visibles = 0;
+
+    filas.forEach(fila => {
+        const nombre   = normalizar(fila.dataset.filename || '');
+        const tipodoc  = fila.dataset.type || '';
+        const añodoc   = fila.dataset.year || '';
+        const keywords = normalizar(fila.dataset.keywords || '');
+        const summary  = normalizar(fila.dataset.summary || '');
+
+        const textoCompleto = `${nombre} ${tipodoc} ${añodoc} ${keywords} ${summary}`;
+
+        const matchQuery = !query || textoCompleto.includes(query);
+        const matchTipo  = !tipo  || tipodoc === tipo;
+        const matchYear  = !year  || añodoc === year;
+
+        const visible = matchQuery && matchTipo && matchYear;
+        fila.style.display = visible ? '' : 'none';
+        if (visible) visibles++;
+    });
+
+    countLabel.textContent = visibles > 0
+        ? `${visibles} documento(s)`
+        : 'Sin resultados';
+}
+
+searchInput.addEventListener('input', filtrar);
+filterType.addEventListener('change', filtrar);
+filterYear.addEventListener('change', filtrar);
+
+// Inicializar contador
+filtrar();
+</script>
 
 {% endblock %}

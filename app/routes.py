@@ -88,12 +88,19 @@ def _get_stats():
 @app.route("/documentos", methods=["GET"])
 @login_required
 def documentos():
-    # Usar tool MCP listar_documentos
-    resultado_json = listar_documentos(estado="all", limite=100, tipo_fuente="all")
-    resultado = json.loads(resultado_json)
+    # Obtener documentos directamente de la BD con metadatos completos
+    from db.connection import DatabaseConnection
+    db = DatabaseConnection()
 
-    if resultado.get("status") == "success":
-        docs = resultado.get("data", [])
+    query = """
+        SELECT id, filename, processing_status, is_indexed, chunk_count,
+               doc_type, doc_year, summary, keywords, created_at
+        FROM documents
+        ORDER BY created_at DESC
+        LIMIT 100;
+    """
+    try:
+        docs = db.execute_query(query, fetch=True) or []
         # Convertir fechas de string a datetime para el template
         for doc in docs:
             if doc.get("created_at") and isinstance(doc["created_at"], str):
@@ -101,9 +108,9 @@ def documentos():
                     doc["created_at"] = datetime.fromisoformat(doc["created_at"])
                 except (ValueError, TypeError):
                     pass
-    else:
+    except Exception as e:
         docs = []
-        flash(f"Error al cargar documentos: {resultado.get('message', 'Error desconocido')}", "error")
+        flash(f"Error al cargar documentos: {str(e)}", "error")
 
     return render_template("documentos.html", documentos=docs, username=session.get("username"), user_role=session.get("user_role"))
 

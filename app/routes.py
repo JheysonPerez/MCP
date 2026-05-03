@@ -1045,7 +1045,7 @@ def academico_chat():
                     "num_predict": 1024
                 }
             },
-            timeout=60
+            timeout=180
         )
         resp.raise_for_status()
         content = resp.json().get("message", {}).get("content", "").strip()

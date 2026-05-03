@@ -51,6 +51,17 @@ El sistema utiliza una arquitectura de persistencia robusta y moderna:
   - **Admin:** Subir, eliminar, reindexar documentos; gestionar usuarios.
   - **Usuario:** Consultar documentos, ver historial personal.
 - **Historial por usuario:** Auditoría de consultas individualizada.
+- **Extracción Automática de Metadatos:**
+  - **`MetadataExtractionService`:** Extrae automáticamente título, tipo de documento, año, fecha, autor y organización de documentos.
+  - **Clasificación inteligente:** Identifica tipos de documento (resolución, informe, acta, carta, decreto, memorando, contrato, etc.).
+  - **Extracción de años:** Detecta años del documento desde múltiples formatos de fecha.
+  - **Procesamiento por lotes:** Capacidad de clasificar múltiples documentos simultáneamente.
+
+### Integración Académica UNAS
+- **`AcademicoService`:** Consulta en tiempo real al sistema académico de la UNAS.
+- **Información disponible:** Notas, horarios, cursos, pagos, matrícula.
+- **Sesiones autenticadas:** Manejo de cookies de sesión para acceso seguro.
+- **Parseo inteligente:** Conversión de tablas HTML a Markdown legible.
 
 ### Web Scraping
 - **Extracción de URLs:** Scrapea páginas web con `requests` + `BeautifulSoup4` y convierte HTML a texto markdown.
@@ -154,16 +165,25 @@ Esto unifica la lógica: tanto la web como clientes MCP externos usan las mismas
 
 ## 6. Arquitectura de Servicios
 
-El sistema está organizado en servicios modulares:
-- **`RagService`:** Orquestador principal del pipeline RAG.
-- **`RetrievalService`:** Búsqueda y recuperación de chunks con filtros.
-- **`HybridSearchService`:** Fusión de resultados vectoriales y BM25.
-- **`RerankService`:** Reordenamiento inteligente de resultados.
-- **`ChunkService`:** Fragmentación inteligente con contexto.
-- **`EmbeddingService`:** Generación de embeddings.
-- **`DocumentService`:** Gestión de archivos y procesamiento.
-- **`WebScraperService`:** Extracción de contenido web.
-- **`GenerationService`:** Generación de documentos con IA.
+El sistema está organizado en servicios modulares que implementan **Single Responsibility** y están completamente cubiertos por tests unitarios:
+
+| Servicio | Descripción | Tests |
+|----------|-------------|-------|
+| **`RagService`** | Orquestador principal del pipeline RAG. Clasificación de intenciones, generación de respuestas. | ✅ 14 tests |
+| **`RetrievalService`** | Búsqueda y recuperación de chunks con filtros y búsqueda vectorial. | ✅ 4 tests |
+| **`HybridSearchService`** | Fusión de resultados vectoriales y BM25 usando RRF. | ✅ 9 tests |
+| **`RerankService`** | Reordenamiento inteligente con LLM y heurísticas de relevancia. | ✅ 9 tests |
+| **`ChunkService`** | Fragmentación inteligente con detección de secciones. | ✅ 5 tests |
+| **`EmbeddingService`** | Generación de embeddings vía Ollama API. | ✅ 5 tests |
+| **`DocumentService`** | Gestión de archivos, procesamiento y OCR. | 🔄 En progreso |
+| **`WebScraperService`** | Extracción de contenido web (HTML → Markdown). | ✅ 8 tests |
+| **`GenerationService`** | Generación de documentos con IA (informes, actas, memorandos). | ✅ 12 tests |
+| **`MetadataExtractionService`** | Extracción automática de metadatos con LLM. | ✅ 14 tests |
+| **`PersistenceService`** | Abstracción de acceso a PostgreSQL. | ✅ 16 tests |
+| **`UserService`** | Gestión de usuarios, autenticación y roles. | ✅ 17 tests |
+| **`AcademicoService`** | Integración con sistema académico UNAS (notas, horarios, matrícula). | ✅ 14 tests |
+
+**Cobertura actual:** 161 tests unitarios pasando, ~39% coverage de servicios.
 
 ## 7. Funcionamiento Interno (IA & RAG)
 1.  **Ingesta:** El usuario sube un archivo; el sistema detecta su tipo y lo guarda en `uploads/`.
@@ -384,7 +404,67 @@ El script detectará automáticamente qué falta y lo creará.
 
 ---
 
-## 10. Limitaciones y Roadmap
+## 10. Tests Unitarios
+
+El proyecto cuenta con una suite completa de tests unitarios para todos los servicios, garantizando la calidad y estabilidad del código.
+
+### Ejecutar Tests
+
+```bash
+# Ejecutar todos los tests de servicios
+pytest tests/unit/services/ -v
+
+# Ejecutar con cobertura
+pytest tests/unit/services/ -v --cov=services --cov-report=html
+
+# Ejecutar un servicio específico
+pytest tests/unit/services/test_rag_service.py -v
+pytest tests/unit/services/test_user_service.py -v
+pytest tests/unit/services/test_persistence_service.py -v
+
+# Ejecutar con resumen corto de errores
+pytest tests/unit/services/ -v --tb=short
+```
+
+### Estructura de Tests
+
+```
+tests/
+├── unit/
+│   └── services/
+│       ├── test_academico_service.py          # 14 tests - Integración UNAS
+│       ├── test_chunk_service.py                # 5 tests - Fragmentación
+│       ├── test_embedding_service.py            # 5 tests - Embeddings
+│       ├── test_generation_service.py           # 12 tests - Generación IA
+│       ├── test_hybrid_search_service.py         # 9 tests - Búsqueda híbrida
+│       ├── test_metadata_extraction_service.py  # 14 tests - Extracción metadatos
+│       ├── test_persistence_service.py          # 16 tests - Base de datos
+│       ├── test_rag_service.py                  # 14 tests - Pipeline RAG
+│       ├── test_rag_service_intent.py           # 9 tests - Clasificación intenciones
+│       ├── test_rerank_service.py               # 9 tests - Re-ranking
+│       ├── test_retrieval_service.py            # 4 tests - Recuperación
+│       ├── test_user_service.py                 # 17 tests - Gestión usuarios
+│       └── test_web_scraper_service.py          # 8 tests - Web scraping
+├── conftest.py                                  # Fixtures y configuración pytest
+└── pytest.ini                                   # Configuración pytest
+```
+
+### Coverage Actual
+
+- **Total:** 161 tests unitarios pasando
+- **Coverage servicios:** ~39%
+- **Servicios testeados:** 12/13 (DocumentService en progreso)
+
+### Herramientas de Testing
+
+- **pytest:** Framework principal de testing
+- **pytest-cov:** Medición de cobertura de código
+- **pytest-mock:** Mocking integrado con pytest
+- **unittest.mock:** MagicMock, patch, mock_open
+
+---
+
+## 11. Limitaciones y Roadmap
 
 ### Roadmap (Completado ✅)
 - ✅ **pgvector:** Indexación persistente y rápida en PostgreSQL.
@@ -401,6 +481,9 @@ El script detectará automáticamente qué falta y lo creará.
 - ✅ **MCP Tools:** 8 herramientas expuestas vía MCP (`consultar_documentos`, `listar_documentos`, etc.).
 - ✅ **Markdown Rendering:** Respuestas RAG renderizadas como HTML con headers, listas y formato limpio.
 - ✅ **Sanitización XSS:** Protección contra XSS en respuestas markdown usando `bleach`.
+- ✅ **Tests Unitarios:** 161 tests unitarios cubriendo 12 servicios.
+- ✅ **Extracción Automática de Metadatos:** Clasificación de documentos con LLM.
+- ✅ **Integración UNAS:** Consulta de notas, horarios y matrícula en tiempo real.
 
 ### Roadmap (Pendiente 🚀)
 - ⚠️ OCR para imágenes JPG/PNG sueltas.
@@ -408,6 +491,7 @@ El script detectará automáticamente qué falta y lo creará.
 - ⚠️ Benchmark de evaluación RAG (RAGAS/TruLens).
 - ⚠️ Panel de logs avanzado en la UI.
 - ⚠️ Colecciones y carpetas documentales.
+- ⚠️ Tests para DocumentService (OCR y procesamiento de archivos).
 
 ---
 *Desarrollado para el fortalecimiento de la gestión del conocimiento institucional mediante IA Soberana.*

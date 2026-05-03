@@ -99,7 +99,7 @@ Responde SOLO con el JSON válido, sin markdown, sin explicaciones adicionales."
                         "top_p": 0.8
                     }
                 },
-                timeout=60
+                timeout=120
             )
             response.raise_for_status()
             result_text = response.json().get("response", "")

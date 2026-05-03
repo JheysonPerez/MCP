@@ -379,7 +379,7 @@ Pregunta: "{question}"
 Responde solo: GREETING, METADATA o CONTENT"""
 
             url = f"{self.base_url}/api/generate"
-            response = requests.post(url, json={"model": self.chat_model, "prompt": prompt, "stream": False}, timeout=10)
+            response = requests.post(url, json={"model": self.chat_model, "prompt": prompt, "stream": False}, timeout=30)
             result = response.json().get("response", "CONTENT").strip().upper().split()[0]
             print(f"[ROUTER] Ollama clasificó '{result}': '{question}'")
             return result.lower() if result in ['GREETING', 'METADATA', 'CONTENT'] else 'content'
@@ -617,8 +617,8 @@ El usuario está preguntando específicamente sobre este documento. Analiza TODO
         }
         
         try:
-            # Timeout según complejidad
-            timeout = 60 if question_type == 'factual' else 90
+            # Timeout según complejidad (aumentado para entornos lentos)
+            timeout = 120 if question_type == 'factual' else 180
             response = requests.post(url, json=payload, timeout=timeout)
             response.raise_for_status()
             data = response.json()

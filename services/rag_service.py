@@ -70,14 +70,14 @@ class RagService:
             text = f.read()
 
         chunks = self.chunk_service.chunk_text(text, str(doc_id))
-        
+
         # Inyectar filename en cada chunk para el RetrievalService
         for c in chunks:
             c["filename"] = doc["filename"]
-            
+
         has_chunks = len(chunks) > 0
         self.retrieval_service.remove_document_chunks(doc_id)
-        
+
         if has_chunks:
             self.retrieval_service.add_chunks(chunks)
             print(f"[OK] Documento {doc_id} indexado con {len(chunks)} chunks.")
@@ -90,6 +90,23 @@ class RagService:
             chunk_count=len(chunks),
             last_indexed_at=datetime.now() if has_chunks else None
         )
+
+        # NUEVO: Extraer metadatos con LLM después del chunking
+        if has_chunks and text:
+            try:
+                from services.metadata_extraction_service import MetadataExtractionService
+                metadata_service = MetadataExtractionService()
+                metadata = metadata_service.extract_metadata(text, doc["filename"])
+
+                if metadata and not metadata.get("metadata_extraction_failed"):
+                    self.persistence.update_document_metadata(doc_id, metadata)
+                    print(f"[OK] Metadatos extraídos para documento {doc_id}")
+                elif metadata:
+                    # Guardar aunque haya fallado para marcarlo
+                    self.persistence.update_document_metadata(doc_id, metadata)
+                    print(f"[WARN] Extracción de metadatos falló para documento {doc_id}")
+            except Exception as e:
+                print(f"[ERROR] Error extrayendo metadatos para doc {doc_id}: {e}")
 
     def reindex_document(self, doc_id: int):
         if not self.persistence: return
@@ -170,6 +187,69 @@ class RagService:
                 return 'procedural'
         
         return 'general'
+
+    # Tipos de documento soportados para detección en queries
+    DOC_TYPE_KEYWORDS = {
+        'carta': ['carta', 'cartas', 'correspondencia'],
+        'decreto': ['decreto', 'decretos', 'decreta'],
+        'resolución': ['resolución', 'resolucion', 'resoluciones'],
+        'informe': ['informe', 'informes', 'reporte', 'reportes'],
+        'acta': ['acta', 'actas'],
+        'memorando': ['memorando', 'memorandum', 'memo', 'memos'],
+        'contrato': ['contrato', 'contratos'],
+        'certificado': ['certificado', 'certificados', 'certificación'],
+        'constancia': ['constancia', 'constancias'],
+        'proyecto': ['proyecto', 'proyectos'],
+        'matriz': ['matriz', 'matrices', 'matriz de consistencia'],
+        'formulario': ['formulario', 'formularios'],
+        'reglamento': ['reglamento', 'reglamentos'],
+        'plan': ['plan', 'planes'],
+        'convenio': ['convenio', 'convenios', 'acuerdo', 'acuerdos'],
+        'oficio': ['oficio', 'oficios'],
+        'circular': ['circular', 'circulares'],
+        'directiva': ['directiva', 'directivas'],
+        'web': ['web', 'página web', 'website', 'sitio web'],
+    }
+
+    def _detect_metadata_filters(self, question: str) -> Dict:
+        """
+        Detecta filtros de metadatos en la consulta del usuario.
+        Retorna: {'doc_type': str|None, 'doc_year': int|None}
+        """
+        q_lower = question.lower()
+        filters = {'doc_type': None, 'doc_year': None}
+
+        # Detectar tipo de documento
+        for doc_type, keywords in self.DOC_TYPE_KEYWORDS.items():
+            for keyword in keywords:
+                # Buscar palabra completa (con límites de palabra)
+                pattern = r'\b' + re.escape(keyword) + r'\b'
+                if re.search(pattern, q_lower):
+                    filters['doc_type'] = doc_type
+                    print(f"[METADATA FILTER] Detectado tipo: {doc_type}")
+                    break
+            if filters['doc_type']:
+                break
+
+        # Detectar año (4 dígitos entre 1900-2100)
+        year_patterns = [
+            r'\b(19\d{2}|20\d{2})\b',  # 1900-2099
+            r'(?:año|del|de el)\s+(19\d{2}|20\d{2})',  # "año 2023", "del 2014"
+        ]
+        for pattern in year_patterns:
+            match = re.search(pattern, q_lower)
+            if match:
+                year_str = match.group(1) if match.groups() else match.group(0)
+                try:
+                    year = int(year_str)
+                    if 1900 <= year <= 2100:
+                        filters['doc_year'] = year
+                        print(f"[METADATA FILTER] Detectado año: {year}")
+                        break
+                except ValueError:
+                    continue
+
+        return filters
 
     def _detect_document_context(self, question: str) -> Dict:
         """
@@ -389,15 +469,21 @@ Responde solo: GREETING, METADATA o CONTENT"""
         
         # --- DETECCIÓN DE CONTEXTO AUTOMÁTICO ---
         auto_ctx = self._detect_document_context(question)
-        
+
+        # NUEVO: Detectar filtros de metadatos (tipo y año)
+        metadata_filters = self._detect_metadata_filters(question)
+
         final_filter_id = document_id or auto_ctx["filter_id"]
         final_boost_id = auto_ctx["boost_id"]
-        
+
         # --- LOG DE CONTEXTO ---
         if final_filter_id:
             print(f"[INFO] Aplicando FILTRO DURO por detección: {final_filter_id}")
         elif final_boost_id:
             print(f"[INFO] Aplicando BOOST por detección parcial: {final_boost_id}")
+
+        if metadata_filters['doc_type'] or metadata_filters['doc_year']:
+            print(f"[INFO] Filtros de metadatos detectados: {metadata_filters}")
 
         # Detectar si es query numérica y pasar query_type
         query_type = "numeric" if self._is_numeric_query(question) else "general"
@@ -406,13 +492,16 @@ Responde solo: GREETING, METADATA o CONTENT"""
 
         # --- EJECUCIÓN DE BÚSQUEDA ---
         retrieval_results = self.retrieval_service.search(
-            question, 
-            top_k=top_k, 
+            question,
+            top_k=top_k,
             document_id=final_filter_id,
             boost_id=final_boost_id,
             sql_threshold=0.35,
             min_score=0.40,
-            query_type=query_type
+            query_type=query_type,
+            # NUEVO: Pasar filtros de metadatos
+            doc_type_filter=metadata_filters.get('doc_type'),
+            doc_year_filter=metadata_filters.get('doc_year')
         )
 
         # --- FILTRO DE CALIDAD ---
@@ -425,7 +514,36 @@ Responde solo: GREETING, METADATA o CONTENT"""
                 "sources": [],
                 "auto_detected_doc": auto_ctx["doc_name"] if (final_filter_id or final_boost_id) else None
             }
-        
+
+        # NUEVO: Si hay filtro de tipo y múltiples documentos, listar en vez de mezclar RAG
+        if metadata_filters.get('doc_type') and not final_filter_id:
+            unique_doc_ids = set(r['document_id'] for r in valid_results)
+
+            if len(unique_doc_ids) > 1:
+                # Múltiples documentos → listar y pedir especificación
+                doc_list = self.persistence.get_documents_by_type(
+                    metadata_filters['doc_type'],
+                    metadata_filters.get('doc_year')
+                )
+
+                answer = f"Encontré {len(doc_list)} documentos de tipo "
+                answer += f"'{metadata_filters['doc_type']}'"
+                if metadata_filters.get('doc_year'):
+                    answer += f" del año {metadata_filters['doc_year']}"
+                answer += ":\n\n"
+
+                for i, doc in enumerate(doc_list[:20], 1):  # Limitar a 20
+                    year = f" ({doc['doc_year']})" if doc.get('doc_year') else ""
+                    summary = f"\n   {doc['summary'][:100]}..." if doc.get('summary') else ""
+                    answer += f"{i}. {doc['filename']}{year}{summary}\n"
+
+                if len(doc_list) > 20:
+                    answer += f"\n... y {len(doc_list) - 20} más."
+
+                answer += "\n¿Sobre cuál te gustaría consultar?"
+
+                return {"answer": answer, "sources": []}
+
         # Detectar tipo de pregunta ANTES de construir el contexto (para limitar según tipo)
         question_type = self._detect_question_type(question)
         
@@ -471,8 +589,18 @@ El usuario está preguntando específicamente sobre este documento. Analiza TODO
 
         # Obtener template según tipo de pregunta (ya detectado arriba)
         template = self.PROMPT_TEMPLATES.get(question_type, self.PROMPT_TEMPLATES['general'])
-        
-        system_msg = template['system']
+
+        # Sobrescribir template SOLO si hay filtro de tipo de documento activo
+        # y no es una query numérica (para no afectar búsquedas de DNI/códigos)
+        if metadata_filters.get('doc_type') and query_type != 'numeric':
+            template = self.PROMPT_TEMPLATES['synthesis']
+            system_msg = (
+                f"Eres un analista documental experto. Se encontraron documentos "
+                f"de tipo '{metadata_filters['doc_type']}' en el repositorio. "
+                f"Describe y lista la información encontrada de forma clara y directa."
+            )
+        else:
+            system_msg = template['system']
         
         # Nuevo orden: PREGUNTA → INSTRUCCIÓN → TEXTO DEL DOCUMENTO
         user_msg = f"PREGUNTA: {question}\n\n{template['instruction']}\n\nTEXTO DEL DOCUMENTO:\n{context_text}"

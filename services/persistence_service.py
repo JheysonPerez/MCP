@@ -51,6 +51,50 @@ class PersistenceService:
         """
         self.db.update_document_metadata(doc_id, **kwargs)
 
+    def update_document_metadata(self, doc_id: int, metadata: dict):
+        """
+        Actualiza los metadatos extraídos automáticamente de un documento.
+        Incluye: doc_type, doc_date, doc_year, extracted_entities, keywords, summary, etc.
+        """
+        # Preparar los campos para actualización
+        update_fields = {}
+
+        if "doc_type" in metadata:
+            update_fields["doc_type"] = metadata["doc_type"]
+        if "doc_date" in metadata:
+            update_fields["doc_date"] = metadata["doc_date"]
+        if "doc_year" in metadata:
+            update_fields["doc_year"] = metadata["doc_year"]
+        if "extracted_entities" in metadata:
+            import json
+            update_fields["extracted_entities"] = json.dumps(metadata["extracted_entities"])
+        if "keywords" in metadata:
+            update_fields["keywords"] = metadata["keywords"]
+        if "summary" in metadata:
+            update_fields["summary"] = metadata["summary"]
+        if "classification_confidence" in metadata:
+            update_fields["classification_confidence"] = metadata["classification_confidence"]
+        if "metadata_extraction_failed" in metadata:
+            update_fields["metadata_extraction_failed"] = metadata["metadata_extraction_failed"]
+
+        if update_fields:
+            self.db.update_document_metadata(doc_id, **update_fields)
+            print(f"[OK] Metadatos guardados para documento {doc_id}")
+
+    def get_documents_without_metadata(self) -> list:
+        """
+        Obtiene documentos indexados que aún no tienen metadatos extraídos.
+        Útil para procesamiento batch.
+        """
+        query = """
+            SELECT id, filename, processed_path
+            FROM documents
+            WHERE is_indexed = TRUE
+              AND (doc_type IS NULL OR metadata_extraction_failed = TRUE)
+            ORDER BY created_at ASC;
+        """
+        return self.db.execute_query(query, fetch=True)
+
     def get_all_documents(self) -> List[Dict]:
         """
         Obtiene todos los documentos registrados sin filtrar por estado.
@@ -73,6 +117,28 @@ class PersistenceService:
         query = "SELECT * FROM documents WHERE id = %s;"
         result = self.db.execute_query(query, (doc_id,), fetch=True)
         return result[0] if result else None
+
+    def get_documents_by_type(self, doc_type: str, doc_year: int = None) -> List[Dict]:
+        """
+        Obtiene documentos filtrados por tipo (y opcionalmente por año).
+        Útil para listar documentos cuando hay múltiples del mismo tipo.
+        """
+        if doc_year:
+            query = """
+                SELECT id, filename, doc_year, summary
+                FROM documents
+                WHERE doc_type = %s AND doc_year = %s AND is_indexed = TRUE
+                ORDER BY doc_year DESC NULLS LAST, filename ASC;
+            """
+            return self.db.execute_query(query, (doc_type, doc_year), fetch=True)
+        else:
+            query = """
+                SELECT id, filename, doc_year, summary
+                FROM documents
+                WHERE doc_type = %s AND is_indexed = TRUE
+                ORDER BY doc_year DESC NULLS LAST, filename ASC;
+            """
+            return self.db.execute_query(query, (doc_type,), fetch=True)
 
     def reset_indexing_metadata(self, doc_id: int):
         """

@@ -63,19 +63,23 @@ class RetrievalService:
         finally:
             conn.close()
 
-    def search(self, query: str, top_k: int = 6, document_id: str = None, 
-               boost_id: str = None, use_rerank: bool = True, 
+    def search(self, query: str, top_k: int = 6, document_id: str = None,
+               boost_id: str = None, use_rerank: bool = True,
                use_hybrid: bool = True, min_score: float = 0.40,
-               sql_threshold: float = 0.35, query_type: str = "general") -> List[Dict]:
+               sql_threshold: float = 0.35, query_type: str = "general",
+               doc_type_filter: str = None, doc_year_filter: int = None) -> List[Dict]:
         """
         Realiza una búsqueda de similitud coseno nativa en PostgreSQL.
         Umbral SQL: 0.35 (más estricto para calidad).
         Post-rerank filter: 0.40 (elimina chunks de baja calidad).
         Fallback automático a 0.25 si no hay resultados.
+
+        NUEVO: Soporta filtros de metadatos (doc_type, doc_year) que aplican
+        antes de la búsqueda vectorial usando JOIN con tabla documents.
         """
         # 1. Recuperar más chunks inicialmente para re-ranking
         retrieval_k = top_k * 4 if (use_rerank or use_hybrid) else top_k
-        
+
         query_embedding = self.embedding_service.get_embedding(query)
         conn = self.db.get_connection()
         register_vector(conn)
@@ -84,20 +88,53 @@ class RetrievalService:
 
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                sql = """
-                    SELECT document_id, filename, chunk_index, chunk_text,
-                           1 - (embedding <=> %s::vector) AS score
-                    FROM document_chunks
-                    WHERE (1 - (embedding <=> %s::vector)) > %s
-                """
-                params = [query_embedding, query_embedding, sql_threshold]
+                # NUEVO: Construir query dinámica con filtros de metadatos
+                has_metadata_filter = doc_type_filter or doc_year_filter
 
-                if document_id:
-                    sql += " AND document_id = %s"
-                    params.append(document_id)
+                if has_metadata_filter:
+                    # Query con JOIN a documents para filtrar por metadatos
+                    sql = """
+                        SELECT c.document_id, c.filename, c.chunk_index, c.chunk_text,
+                               1 - (c.embedding <=> %s::vector) AS score
+                        FROM document_chunks c
+                        INNER JOIN documents d ON c.document_id = d.id
+                        WHERE (1 - (c.embedding <=> %s::vector)) > %s
+                          AND d.is_indexed = TRUE
+                    """
+                    params = [query_embedding, query_embedding, sql_threshold]
 
-                sql += " ORDER BY score DESC LIMIT %s;"
-                params.append(retrieval_k)
+                    if doc_type_filter:
+                        sql += " AND d.doc_type = %s"
+                        params.append(doc_type_filter)
+
+                    if doc_year_filter:
+                        sql += " AND d.doc_year = %s"
+                        params.append(doc_year_filter)
+
+                    if document_id:
+                        sql += " AND c.document_id = %s"
+                        params.append(document_id)
+
+                    sql += " ORDER BY score DESC LIMIT %s;"
+                    params.append(retrieval_k)
+
+                    print(f"[RETRIEVAL] Filtros aplicados: doc_type={doc_type_filter}, doc_year={doc_year_filter}")
+                else:
+                    # Query original sin filtros de metadatos
+                    sql = """
+                        SELECT document_id, filename, chunk_index, chunk_text,
+                               1 - (embedding <=> %s::vector) AS score
+                        FROM document_chunks
+                        WHERE (1 - (embedding <=> %s::vector)) > %s
+                    """
+                    params = [query_embedding, query_embedding, sql_threshold]
+
+                    if document_id:
+                        sql += " AND document_id = %s"
+                        params.append(document_id)
+
+                    sql += " ORDER BY score DESC LIMIT %s;"
+                    params.append(retrieval_k)
 
                 cur.execute(sql, params)
                 rows = cur.fetchall()

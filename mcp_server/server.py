@@ -565,6 +565,164 @@ def generar_informe_simple(tema: str) -> str:
     )
 
 
+@mcp.tool()
+def buscar_documentos_por_metadatos(
+    consulta: str,
+    tipo_documento: str = None,
+    año: int = None,
+    fecha_desde: str = None,
+    fecha_hasta: str = None,
+    personas: list = None,
+    temas: list = None,
+    limite: int = 10
+) -> str:
+    """
+    Busca documentos por contenido semántico + filtros de metadatos.
+
+    Permite consultas como:
+    - "cartas del 2014" → consulta="cartas", año=2014
+    - "decretos sobre investigaciones" → consulta="decretos investigaciones", tipo_documento="decreto"
+    - "documentos de Juan Pérez en 2023" → consulta="documentos", personas=["Juan Pérez"], año=2023
+
+    Args:
+        consulta: Texto a buscar (consulta semántica)
+        tipo_documento: Tipo de documento ('carta', 'decreto', 'resolución', 'informe', etc.)
+        año: Año del documento (ej: 2014)
+        fecha_desde: Fecha mínima en formato YYYY-MM-DD
+        fecha_hasta: Fecha máxima en formato YYYY-MM-DD
+        personas: Lista de nombres de personas mencionadas en el documento
+        temas: Lista de temas a buscar
+        limite: Máximo de resultados (1-50)
+
+    Returns:
+        JSON con documentos encontrados y metadatos
+    """
+    try:
+        limite = max(1, min(50, limite))
+
+        # Construir WHERE dinámico
+        where_conditions = ["is_indexed = TRUE"]
+        params = []
+
+        if tipo_documento:
+            where_conditions.append("doc_type = %s")
+            params.append(tipo_documento.lower())
+
+        if año:
+            where_conditions.append("doc_year = %s")
+            params.append(año)
+
+        if fecha_desde:
+            where_conditions.append("doc_date >= %s")
+            params.append(fecha_desde)
+
+        if fecha_hasta:
+            where_conditions.append("doc_date <= %s")
+            params.append(fecha_hasta)
+
+        if personas and len(personas) > 0:
+            # Buscar en extracted_entities JSONB
+            where_conditions.append("extracted_entities @> %s")
+            import json
+            params.append(json.dumps({"personas": personas}))
+
+        if temas and len(temas) > 0:
+            # Buscar en keywords array
+            where_conditions.append("keywords && %s")
+            params.append(temas)
+
+        where_clause = " AND ".join(where_conditions)
+
+        # Query base para obtener documentos filtrados
+        base_query = f"""
+            SELECT id, filename, doc_type, doc_date, doc_year,
+                   extracted_entities, keywords, summary, classification_confidence,
+                   chunk_count, created_at
+            FROM documents
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT %s;
+        """
+        params.append(limite)
+
+        rows = db_conn.execute_query(base_query, tuple(params), fetch=True)
+
+        if not rows:
+            return json.dumps({
+                "status": "success",
+                "message": "No se encontraron documentos con los filtros especificados.",
+                "filtros_aplicados": {
+                    "consulta": consulta,
+                    "tipo_documento": tipo_documento,
+                    "año": año,
+                    "fecha_desde": fecha_desde,
+                    "fecha_hasta": fecha_hasta,
+                    "personas": personas,
+                    "temas": temas
+                },
+                "data": [],
+                "total": 0
+            }, ensure_ascii=False)
+
+        # Para cada documento, buscar chunks relevantes si hay consulta semántica
+        resultados = []
+        for doc in rows:
+            doc_id = doc["id"]
+
+            # Si hay consulta, buscar chunks relevantes
+            chunk_context = ""
+            if consulta and consulta.strip():
+                try:
+                    # Buscar chunks semánticamente relevantes
+                    chunks_result = retrieval_service.search(
+                        consulta,
+                        top_k=3,
+                        document_id=str(doc_id),
+                        min_score=0.3
+                    )
+                    if chunks_result:
+                        chunk_context = "\n".join([c.get("chunk_text", "")[:300] for c in chunks_result[:2]])
+                except Exception as e:
+                    print(f"[WARN] Error buscando chunks para doc {doc_id}: {e}")
+
+            # Preparar resultado
+            resultado = {
+                "id": doc_id,
+                "filename": doc["filename"],
+                "doc_type": doc.get("doc_type"),
+                "doc_year": doc.get("doc_year"),
+                "doc_date": str(doc["doc_date"]) if doc.get("doc_date") else None,
+                "summary": doc.get("summary"),
+                "keywords": doc.get("keywords", []),
+                "extracted_entities": doc.get("extracted_entities", {}),
+                "confidence": doc.get("classification_confidence"),
+                "chunk_count": doc.get("chunk_count"),
+                "relevant_snippet": chunk_context[:500] if chunk_context else None
+            }
+            resultados.append(resultado)
+
+        return json.dumps({
+            "status": "success",
+            "filtros_aplicados": {
+                "consulta": consulta,
+                "tipo_documento": tipo_documento,
+                "año": año,
+                "fecha_desde": fecha_desde,
+                "fecha_hasta": fecha_hasta,
+                "personas": personas,
+                "temas": temas
+            },
+            "total": len(resultados),
+            "data": resultados
+        }, ensure_ascii=False)
+
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] buscar_documentos_por_metadatos: {e}")
+        print(traceback.format_exc())
+        return json.dumps({"status": "error", "message": str(e)})
+
+
 def run():
     """
     Inicia el transporte stdio, ideal para que lo consuma Claude Desktop u otros clientes MCP.

@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS documents (
     refresh_frequency VARCHAR(20) DEFAULT 'manual',
     last_scraped_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    -- Campos para metadatos extraídos automáticamente
+    doc_type VARCHAR(50),
+    doc_date DATE,
+    doc_year INTEGER,
+    extracted_entities JSONB,
+    classification_confidence FLOAT,
+    summary TEXT,
+    keywords TEXT[],
+    metadata_extraction_failed BOOLEAN DEFAULT FALSE,
     CONSTRAINT check_processing_status 
         CHECK (processing_status IN ('pending', 'completed', 'failed')),
     CONSTRAINT check_source_type 
@@ -57,6 +66,12 @@ CREATE TABLE IF NOT EXISTS chunks (
 CREATE INDEX IF NOT EXISTS idx_documents_indexed ON documents(is_indexed);
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(processing_status);
 CREATE INDEX IF NOT EXISTS idx_documents_source_type ON documents(source_type);
+-- Índices para búsquedas por metadatos
+CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(doc_type);
+CREATE INDEX IF NOT EXISTS idx_documents_year ON documents(doc_year);
+CREATE INDEX IF NOT EXISTS idx_documents_date ON documents(doc_date);
+CREATE INDEX IF NOT EXISTS idx_documents_keywords ON documents USING GIN(keywords);
+CREATE INDEX IF NOT EXISTS idx_documents_entities ON documents USING GIN(extracted_entities);
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks USING ivfflat (embedding vector_cosine_ops);
 

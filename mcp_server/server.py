@@ -429,8 +429,7 @@ def agregar_fuente_web(
             original_path=url,
             processed_path=str(processed_path),
             user_id=user_id,
-            source_type='web',
-            source_url=url
+            source_type='web'
         )
 
         # Indexar si se solicita

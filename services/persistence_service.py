@@ -31,16 +31,16 @@ class PersistenceService:
         new_user = self.db.execute_query(insert_query, (username, email), fetch=True, commit=True)
         return new_user[0]['id']
 
-    def register_document(self, filename: str, original_path: str, processed_path: str, user_id: int) -> int:
+    def register_document(self, filename: str, original_path: str, processed_path: str, user_id: int, source_type: str = 'file') -> int:
         """
         Guarda el registro inicial de un documento procesado en la tabla `documents`.
         """
         query = """
-            INSERT INTO documents (filename, original_path, processed_path, uploaded_by, processing_status) 
-            VALUES (%s, %s, %s, %s, 'pending') RETURNING id;
+            INSERT INTO documents (filename, original_path, processed_path, uploaded_by, processing_status, source_type) 
+            VALUES (%s, %s, %s, %s, 'pending', %s) RETURNING id;
         """
         result = self.db.execute_query(
-            query, (filename, original_path, processed_path, user_id), 
+            query, (filename, original_path, processed_path, user_id, source_type), 
             fetch=True, commit=True
         )
         return result[0]['id']
@@ -76,6 +76,8 @@ class PersistenceService:
             update_fields["classification_confidence"] = metadata["classification_confidence"]
         if "metadata_extraction_failed" in metadata:
             update_fields["metadata_extraction_failed"] = metadata["metadata_extraction_failed"]
+        if "source_url" in metadata:
+            update_fields["source_url"] = metadata["source_url"]
 
         if update_fields:
             self.db.update_document_metadata(doc_id, **update_fields)

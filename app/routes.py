@@ -1105,22 +1105,15 @@ def academico_extract():
         filename=f"[UNAS] {page_info['label']}",
         original_path=result["url"],
         processed_path=os.path.abspath(processed_path),
-        user_id=user_id
+        user_id=user_id,
+        source_type='academico'
     )
     app.persistence.update_document_status(
         doc_id,
         processing_status="completed",
-        processed_path=os.path.abspath(processed_path)
+        processed_path=os.path.abspath(processed_path),
+        source_url=result["url"]
     )
-    
-    conn = app.db_conn.get_connection()
-    with conn.cursor() as cur:
-        cur.execute("""
-            UPDATE documents SET source_url=%s, source_type='academico',
-            last_scraped_at=NOW() WHERE id=%s
-        """, (result["url"], doc_id))
-    conn.commit()
-    conn.close()
     
     app.rag_service.index_document(doc_id, os.path.abspath(processed_path))
     flash(f"'{page_info['label']}' indexado ({result['word_count']} palabras)", "success")

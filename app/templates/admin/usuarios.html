@@ -14,74 +14,75 @@
     }
     
     .btn-primary {
-        background: #1d4ed8;
-        color: white;
+        background: var(--color-primary);
+        color: var(--color-text-inverse);
         border: none;
         padding: 0.6rem 1.2rem;
-        border-radius: 8px;
+        border-radius: var(--radius-md);
         cursor: pointer;
         display: flex;
         align-items: center;
         gap: 0.5rem;
         font-size: 0.9rem;
+        transition: background 0.15s;
     }
     
     .btn-primary:hover {
-        background: #1e40af;
+        background: var(--color-primary-hover);
     }
     
     .users-table {
         width: 100%;
         border-collapse: collapse;
-        background: white;
-        border-radius: 10px;
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
         overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: var(--shadow-sm);
     }
     
     .users-table th,
     .users-table td {
         padding: 1rem;
         text-align: left;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--color-border);
     }
     
     .users-table th {
-        background: #f9fafb;
+        background: var(--color-surface-alt);
         font-weight: 600;
         font-size: 0.8rem;
         text-transform: uppercase;
-        color: #6b7280;
+        color: var(--color-text-muted);
     }
     
     .users-table tr:hover {
-        background: #f9fafb;
+        background: var(--color-surface-alt);
     }
     
     .role-badge {
         padding: 0.25rem 0.75rem;
-        border-radius: 20px;
+        border-radius: var(--radius-pill);
         font-size: 0.75rem;
         font-weight: 500;
     }
     
     .role-admin {
-        background: #fef3c7;
-        color: #92400e;
+        background: var(--color-warning-bg);
+        color: var(--color-warning);
     }
     
     .role-user {
-        background: #e0e7ff;
-        color: #3730a3;
+        background: var(--color-info-bg);
+        color: var(--color-info);
     }
     
     .status-active {
-        color: #16a34a;
+        color: var(--color-success);
         font-weight: 500;
     }
     
     .status-inactive {
-        color: #dc2626;
+        color: var(--color-error);
         font-weight: 500;
     }
     
@@ -93,10 +94,17 @@
     .btn-icon {
         padding: 0.4rem;
         border: none;
-        border-radius: 6px;
+        border-radius: var(--radius-sm);
         cursor: pointer;
         background: transparent;
-        color: #6b7280;
+        color: var(--color-text-muted);
+        transition: var(--transition);
+    }
+    
+    .btn-icon:hover {
+        color: var(--color-text-main);
+        background: var(--color-surface-alt);
+    }
     }
     
     .btn-icon:hover {

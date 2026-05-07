@@ -25,33 +25,33 @@
 </div>
 
 <!-- QUICK ACCESS -->
-<h5 style="margin-bottom: 0.85rem; font-size: 0.9rem; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.05em;">Accesos rápidos</h5>
+<h5 style="margin-bottom: 0.85rem; font-size: 0.9rem; font-weight: 600; color: var(--color-text-main); text-transform: uppercase; letter-spacing: 0.05em;">Accesos rápidos</h5>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem;">
     <a href="{{ url_for('consultar') }}" style="text-decoration: none;">
         <div class="card" style="text-align: center; padding: 1.5rem 1rem; transition: box-shadow 0.15s;"
-             onmouseover="this.style.boxShadow='0 4px 16px rgba(29,78,216,0.12)'"
+             onmouseover="this.style.boxShadow='var(--shadow-md)'"
              onmouseout="this.style.boxShadow=''">
-            <i class="bi bi-search" style="font-size: 1.75rem; color: #1d4ed8; display: block; margin-bottom: 0.5rem;"></i>
-            <div style="font-weight: 600; font-size: 0.9rem; color: #111827;">Hacer consulta</div>
-            <div style="font-size: 0.78rem; color: #6b7280; margin-top: 0.2rem;">Consulta documentos con IA</div>
+            <i class="bi bi-search" style="font-size: 1.75rem; color: var(--color-primary); display: block; margin-bottom: 0.5rem;"></i>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--color-text-main);">Hacer consulta</div>
+            <div style="font-size: 0.78rem; color: var(--color-text-secondary); margin-top: 0.2rem;">Consulta documentos con IA</div>
         </div>
     </a>
     <a href="{{ url_for('documentos') }}" style="text-decoration: none;">
         <div class="card" style="text-align: center; padding: 1.5rem 1rem; transition: box-shadow 0.15s;"
-             onmouseover="this.style.boxShadow='0 4px 16px rgba(29,78,216,0.12)'"
+             onmouseover="this.style.boxShadow='var(--shadow-md)'"
              onmouseout="this.style.boxShadow=''">
-            <i class="bi bi-upload" style="font-size: 1.75rem; color: #1d4ed8; display: block; margin-bottom: 0.5rem;"></i>
-            <div style="font-weight: 600; font-size: 0.9rem; color: #111827;">Subir documento</div>
-            <div style="font-size: 0.78rem; color: #6b7280; margin-top: 0.2rem;">Agregar documento al repositorio</div>
+            <i class="bi bi-upload" style="font-size: 1.75rem; color: var(--color-primary); display: block; margin-bottom: 0.5rem;"></i>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--color-text-main);">Subir documento</div>
+            <div style="font-size: 0.78rem; color: var(--color-text-secondary); margin-top: 0.2rem;">Agregar documento al repositorio</div>
         </div>
     </a>
     <a href="{{ url_for('historial') }}" style="text-decoration: none;">
         <div class="card" style="text-align: center; padding: 1.5rem 1rem; transition: box-shadow 0.15s;"
-             onmouseover="this.style.boxShadow='0 4px 16px rgba(29,78,216,0.12)'"
+             onmouseover="this.style.boxShadow='var(--shadow-md)'"
              onmouseout="this.style.boxShadow=''">
-            <i class="bi bi-clock-history" style="font-size: 1.75rem; color: #1d4ed8; display: block; margin-bottom: 0.5rem;"></i>
-            <div style="font-weight: 600; font-size: 0.9rem; color: #111827;">Ver historial</div>
-            <div style="font-size: 0.78rem; color: #6b7280; margin-top: 0.2rem;">Consultas anteriores</div>
+            <i class="bi bi-clock-history" style="font-size: 1.75rem; color: var(--color-primary); display: block; margin-bottom: 0.5rem;"></i>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--color-text-main);">Ver historial</div>
+            <div style="font-size: 0.78rem; color: var(--color-text-secondary); margin-top: 0.2rem;">Consultas anteriores</div>
         </div>
     </a>
 </div>

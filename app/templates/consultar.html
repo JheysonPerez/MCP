@@ -81,12 +81,14 @@
         margin-bottom: 0.4rem;
     }
 
-    /* Layout principal del chat - dentro del flujo de base.html */
+    /* Layout principal del chat - ocupa todo el .page-body */
     .chat-layout {
+        flex: 1;
         display: flex;
         flex-direction: column;
-        min-height: calc(100vh - 250px); /* Altura disponible menos headers */
+        min-height: 0; /* crítico para que flex-child haga scroll */
         position: relative;
+        overflow: hidden;
     }
 
     .chat-messages {
@@ -94,7 +96,12 @@
         display: flex;
         flex-direction: column;
         gap: 1.5rem;
-        padding-bottom: 2rem;
+        padding-bottom: 1rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+        min-height: 0; /* crítico para que flex-item haga scroll */
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
     }
 
     .query-form-container {
@@ -103,14 +110,11 @@
         border: 1px solid var(--color-border);
         box-shadow: var(--shadow-sm);
         padding: 0.6rem 0.75rem 0 0.75rem;
-        margin-top: auto;
-        position: sticky;
-        bottom: 0.5rem;
-        z-index: 1; /* Bajo para que el botón pase por encima */
+        flex-shrink: 0;
     }
 
     .query-form-container form {
-        margin: 0; /* Resetear margen por defecto del form */
+        margin: 0;
     }
 
     /* Botón flotante scroll-to-bottom - centrado horizontal fijo */
@@ -128,7 +132,7 @@
         cursor: pointer;
         box-shadow: 0 4px 12px rgba(0,0,0,0.25);
         font-size: 1rem;
-        z-index: 9999;
+        z-index: 100; /* Reducido para evitar conflictos */
         display: none;
         align-items: center;
         justify-content: center;
@@ -267,25 +271,8 @@
                     <span class="source-tag" title="Confianza: {{ (src.score * 100)|round(0) }}%">
                         <i class="bi bi-file-earmark-text"></i>
                         {{ src.filename or 'Doc' }}
-                        <span style="
-                            display: inline-block;
-                            width: 40px;
-                            height: 4px;
-                            background: var(--color-border);
-                            border-radius: 2px;
-                            margin-left: 4px;
-                            vertical-align: middle;
-                            position: relative;
-                            overflow: hidden;
-                        ">
-                            <span style="
-                                position: absolute;
-                                left: 0; top: 0;
-                                height: 100%;
-                                width: {{ (src.score * 100)|round(0) }}%;
-                                background: {% if src.score > 0.7 %}var(--color-success){% elif src.score > 0.5 %}#f59e0b{% else %}var(--color-error){% endif %};
-                                border-radius: 2px;
-                            "></span>
+                        <span style="display: inline-block; width: 40px; height: 4px; background: var(--color-border); border-radius: 2px; margin-left: 4px; vertical-align: middle; position: relative; overflow: hidden;">
+                            <span style="position: absolute; left: 0; top: 0; height: 100%; width: {{ (src.score * 100)|round(0) }}%; background: {% if src.score > 0.7 %}var(--color-success){% elif src.score > 0.5 %}#f59e0b{% else %}var(--color-error){% endif %}; border-radius: 2px;"></span>
                         </span>
                         <span style="font-size:0.65rem; opacity:0.7;">{{ (src.score * 100)|round(0) }}%</span>
                     </span>
@@ -388,11 +375,13 @@
 
     // Auto-scroll al último mensaje y botón scroll
     const pageBody = document.querySelector('.page-body'); // El contenedor con scroll
+    const chatMessages = document.querySelector('.chat-messages'); // El contenedor interno
     
     function scrollToBottom() {
-        if (pageBody) {
-            pageBody.scrollTo({ 
-                top: pageBody.scrollHeight, 
+        if (chatMessages) {
+            // Scroll dentro del contenedor de mensajes en vez del body
+            chatMessages.scrollTo({ 
+                top: chatMessages.scrollHeight, 
                 behavior: 'smooth' 
             });
         }
@@ -409,22 +398,28 @@
     const scrollBtn = document.getElementById('scroll-bottom-btn');
     
     function updateScrollButton() {
-        if (!pageBody || !scrollBtn) return;
+        if (!chatMessages || !scrollBtn) return;
         
-        const scrolled = pageBody.scrollTop;
-        const maxScroll = pageBody.scrollHeight - pageBody.clientHeight;
+        const scrolled = chatMessages.scrollTop;
+        const maxScroll = chatMessages.scrollHeight - chatMessages.clientHeight;
         const distanceFromBottom = maxScroll - scrolled;
         
         // Mostrar solo si scrolleamos hacia arriba y estamos lejos del fondo
-        // Umbral: más de 300px del fondo
-        if (scrolled > 150 && distanceFromBottom > 300) {
+        // Umbral: más de 200px del fondo (reducido para mejor UX)
+        if (scrolled > 100 && distanceFromBottom > 200) {
             scrollBtn.classList.add('show');
         } else {
             scrollBtn.classList.remove('show');
         }
     }
     
-    pageBody.addEventListener('scroll', updateScrollButton);
+    // Remover listener anterior si existe para evitar duplicados
+    if (window.scrollHandler) {
+        chatMessages.removeEventListener('scroll', window.scrollHandler);
+    }
+    
+    window.scrollHandler = updateScrollButton;
+    chatMessages.addEventListener('scroll', window.scrollHandler);
     updateScrollButton(); // Check inicial
 </script>
 

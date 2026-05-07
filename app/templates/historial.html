@@ -6,46 +6,173 @@
 
 {% block content %}
 
-{% if historial %}
-<p style="font-size: 0.82rem; color: #6b7280; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.4rem;">
-    <i class="bi bi-journal-text"></i> {{ historial|length }} consulta(s) recientes
-</p>
+<style>
+/* Estilos específicos para historial */
+.historial-container {
+    padding: 0;
+}
 
-{% for item in historial %}
-<div class="card" style="margin-bottom: 0.85rem;">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.65rem;">
-        <div style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #6b7280;">
-            <i class="bi bi-calendar3"></i>
-            {{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else '' }}
+.historial-header {
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0;
+    position: sticky;
+    top: 0;
+    background: var(--color-bg);
+    z-index: 10;
+}
+
+.historial-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+    margin-bottom: 0.85rem;
+    transition: var(--transition);
+}
+
+.historial-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.65rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.card-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+.card-query {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.query-icon {
+    color: var(--color-primary);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.query-text {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--color-text-main);
+    line-height: 1.4;
+}
+
+.card-response {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding-left: 0.1rem;
+}
+
+.response-icon {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-size: 0.9rem;
+}
+
+.response-text {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--color-text-muted);
+}
+
+.empty-icon {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 0.75rem;
+    opacity: 0.3;
+}
+
+.btn-primary-custom {
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0.5rem 1.1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+
+.btn-primary-custom:hover {
+    background: var(--color-primary-hover);
+}
+</style>
+
+{% if historial %}
+<div class="historial-container">
+    <div class="historial-header">
+        <i class="bi bi-journal-text"></i> {{ historial|length }} consulta(s) recientes
+    </div>
+
+    {% for item in historial %}
+    <div class="historial-card">
+        <div class="card-header">
+            <div class="card-meta">
+                <i class="bi bi-calendar3"></i>
+                {{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else '' }}
+            </div>
+            <div class="card-meta">
+                <i class="bi bi-person"></i> {{ item.username or 'Sistema' }}
+            </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: #6b7280;">
-            <i class="bi bi-person"></i> {{ item.username or 'Sistema' }}
+        <div class="card-query">
+            <i class="bi bi-question-circle query-icon"></i>
+            <span class="query-text">{{ item.query_text }}</span>
         </div>
+        {% if item.response_text %}
+        <div class="card-response">
+            <i class="bi bi-chat-square-text response-icon"></i>
+            <span class="response-text">
+                {{ item.response_text[:250] }}{% if item.response_text|length > 250 %}…{% endif %}
+            </span>
+        </div>
+        {% endif %}
     </div>
-    <div style="display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.5rem;">
-        <i class="bi bi-question-circle" style="color: #1d4ed8; flex-shrink: 0; margin-top: 2px;"></i>
-        <span style="font-weight: 600; font-size: 0.9rem; color: #111827;">{{ item.query_text }}</span>
-    </div>
-    {% if item.response_text %}
-    <div style="display: flex; align-items: flex-start; gap: 0.5rem; padding-left: 0.1rem;">
-        <i class="bi bi-chat-square-text" style="color: #6b7280; flex-shrink: 0; margin-top: 2px; font-size: 0.9rem;"></i>
-        <span style="font-size: 0.85rem; color: #6b7280; line-height: 1.5;">
-            {{ item.response_text[:250] }}{% if item.response_text|length > 250 %}…{% endif %}
-        </span>
-    </div>
-    {% endif %}
+    {% endfor %}
 </div>
-{% endfor %}
 
 {% else %}
-<div class="card" style="text-align: center; padding: 3rem 1rem; color: #9ca3af;">
-    <i class="bi bi-clock-history" style="font-size: 2.5rem; display: block; margin-bottom: 0.75rem;"></i>
-    <p style="margin: 0 0 1rem; font-size: 0.9rem;">No hay consultas registradas aún.</p>
-    <a href="{{ url_for('consultar') }}"
-        style="background: #1d4ed8; color: #fff; border: none; border-radius: 7px; padding: 0.5rem 1.1rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none; transition: background 0.15s;"
-        onmouseover="this.style.background='#1e40af'" onmouseout="this.style.background='#1d4ed8'">
-        <i class="bi bi-search"></i> Hacer una consulta
-    </a>
+<div class="historial-container">
+    <div class="empty-state">
+        <i class="bi bi-clock-history empty-icon"></i>
+        <p style="margin: 0 0 1rem; font-size: 0.9rem;">No hay consultas registradas aún.</p>
+        <a href="{{ url_for('consultar') }}" class="btn-primary-custom">
+            <i class="bi bi-search"></i> Hacer una consulta
+        </a>
+    </div>
 </div>
 {% endif %}
 

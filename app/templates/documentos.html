@@ -13,20 +13,20 @@
 <!-- UPLOAD CARD - Solo Admin -->
 {% if session.get('user_role') == 'admin' %}
 <div class="card" style="margin-bottom: 1.5rem;">
-    <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 0.4rem;">
-        <i class="bi bi-upload" style="color: #1d4ed8;"></i> Subir nuevo documento
+    <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: var(--color-text-main); display: flex; align-items: center; gap: 0.4rem;">
+        <i class="bi bi-upload" style="color: var(--color-primary);"></i> Subir nuevo documento
     </h5>
     <form action="{{ url_for('upload_document') }}" method="POST" enctype="multipart/form-data" onsubmit="document.getElementById('upload-loader').style.display='block';">
-        <div style="border: 2px dashed #d1d5db; border-radius: 8px; padding: 1.5rem; text-align: center; margin-bottom: 1rem; background: #f9fafb; cursor: pointer;">
-            <i class="bi bi-cloud-arrow-up" style="font-size: 1.75rem; color: #9ca3af; display: block; margin-bottom: 0.5rem;"></i>
-            <p style="margin: 0; font-size: 0.85rem; font-weight: 600; color: #374151;">Selecciona o arrastra un archivo</p>
-            <small style="color: #9ca3af; font-size: 0.75rem;">PDF, DOCX o TXT</small>
+        <div style="border: 2px dashed var(--color-border); border-radius: 8px; padding: 1.5rem; text-align: center; margin-bottom: 1rem; background: var(--color-surface); cursor: pointer;">
+            <i class="bi bi-cloud-arrow-up" style="font-size: 1.75rem; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem;"></i>
+            <p style="margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--color-text-secondary);">Selecciona o arrastra un archivo</p>
+            <small style="color: var(--color-text-muted); font-size: 0.75rem;">PDF, DOCX o TXT</small>
             <div style="margin-top: 0.75rem;">
                 <input type="file" id="file" name="file" accept=".pdf,.docx,.txt,.jpg,.jpeg,.png" required style="font-size: 0.75rem;">
             </div>
         </div>
         <button type="submit"
-            style="background: #1d4ed8; color: #fff; border: none; border-radius: 7px; padding: 0.55rem 1.25rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: background 0.15s;">
+            style="background: var(--color-primary); color: var(--color-text-inverse); border: none; border-radius: 7px; padding: 0.55rem 1.25rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: background 0.15s;">
             <i class="bi bi-plus-lg"></i> Subir e Indexar
         </button>
     </form>
@@ -35,21 +35,21 @@
 
 <!-- LISTADO CARD -->
 <div class="card">
-    <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 0.4rem;">
-        <i class="bi bi-folder2-open" style="color: #1d4ed8;"></i> Documentos registrados
+    <h5 style="margin: 0 0 1rem; font-size: 0.9rem; font-weight: 700; color: var(--color-text-main); display: flex; align-items: center; gap: 0.4rem;">
+        <i class="bi bi-folder2-open" style="color: var(--color-primary);"></i> Documentos registrados
     </h5>
 
     <!-- BARRA DE BÚSQUEDA INTELIGENTE -->
-    <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+    <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--color-surface-alt); border-radius: 8px; border: 1px solid var(--color-border);">
         <input
             type="text"
             id="doc-search-input"
             placeholder="Buscar por nombre, tipo, año, tema..."
             autocomplete="off"
-            style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem; margin-bottom: 0.75rem; box-sizing: border-box;"
+            style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.875rem; margin-bottom: 0.75rem; box-sizing: border-box;"
         />
         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
-            <select id="filter-type" style="padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.8rem; background: #fff; cursor: pointer;">
+            <select id="filter-type" style="padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.8rem; background: var(--color-surface); cursor: pointer;">
                 <option value="">Todos los tipos</option>
                 <option value="certificado">Certificado</option>
                 <option value="carta">Carta</option>
@@ -73,109 +73,342 @@
     </div>
 
     {% if documentos %}
-    <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-            <thead>
-                <tr style="border-bottom: 2px solid #e5e7eb;">
-                    <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Nombre</th>
-                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Procesamiento</th>
-                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Índice Semántico</th>
-                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Chunks</th>
-                    <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for doc in documentos %}
-                <tr style="border-bottom: 1px solid #f3f4f6;"
-                    data-filename="{{ doc.filename | lower }}"
-                    data-type="{{ doc.doc_type or '' }}"
-                    data-year="{{ doc.doc_year or '' }}"
-                    data-keywords="{{ doc.keywords | join(' ') | lower if doc.keywords else '' }}"
-                    data-summary="{{ doc.summary | lower if doc.summary else '' }}"
-                >
-                    <td style="padding: 0.85rem 0.75rem;">
-                        <div style="font-weight: 600; color: #111827; margin-bottom: 0.1rem;">{{ doc.filename }}</div>
-                        <div style="font-size: 0.75rem; color: #9ca3af;">
-                            ID: #{{ doc.id }} · {{ doc.created_at.strftime('%d/%m/%Y %H:%M') if doc.created_at else '—' }}
-                            {% if doc.doc_type %} · <span style="background: #e0e7ff; color: #4338ca; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 600;">{{ doc.doc_type }}</span>{% endif %}
-                            {% if doc.doc_year %} · {{ doc.doc_year }}{% endif %}
-                        </div>
-                        {% if doc.summary %}
-                        <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem; font-style: italic;">{{ doc.summary[:80] }}{% if doc.summary|length > 80 %}...{% endif %}</div>
-                        {% endif %}
-                    </td>
-                    <td style="padding: 0.85rem 0.75rem; text-align: center;">
-                        {% if doc.processing_status == 'completed' %}
-                            <span style="background: #f0fdf4; color: #16a34a; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #bbf7d0;">
-                                <i class="bi bi-check-circle"></i> LISTO
-                            </span>
-                        {% elif doc.processing_status == 'failed' %}
-                            <span style="background: #fef2f2; color: #dc2626; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #fecaca;" title="Ver error en logs">
-                                <i class="bi bi-exclamation-triangle"></i> ERROR
-                            </span>
-                        {% else %}
-                            <span style="background: #eff6ff; color: #2563eb; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #bfdbfe;">
-                                <i class="bi bi-clock"></i> PENDIENTE
-                            </span>
-                        {% endif %}
-                    </td>
-                    <td style="padding: 0.85rem 0.75rem; text-align: center;">
-                        {% if doc.is_indexed %}
-                            <span style="background: #fdf4ff; color: #a21caf; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #f5d0fe;">
-                                <i class="bi bi-cpu"></i> INDEXADO
-                            </span>
-                        {% else %}
-                            <span style="background: #f9fafb; color: #6b7280; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid #e5e7eb;">
-                                <i class="bi bi-dash-circle"></i> SIN ÍNDICE
-                            </span>
-                        {% endif %}
-                    </td>
-                    <td style="padding: 0.85rem 0.75rem; text-align: center; color: #374151; font-weight: 600;">
-                        {{ doc.chunk_count or 0 }}
-                    </td>
-                    <td style="padding: 0.85rem 0.75rem; text-align: center;">
-                        <div style="display: flex; justify-content: center; gap: 0.5rem;">
-                            <a href="{{ url_for('consultar', doc_id=doc.id) }}" title="Consultar" 
-                               style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-decoration: none; transition: all 0.2s;">
-                                <i class="bi bi-chat-left-text"></i>
-                            </a>
-                            <a href="{{ url_for('download_document', doc_id=doc.id) }}" title="Descargar original" 
-                               style="background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-decoration: none; transition: all 0.2s;">
-                                <i class="bi bi-download"></i>
-                            </a>
-                            {% if session.get('user_role') == 'admin' %}
-                            <form action="{{ url_for('reindex_document', doc_id=doc.id) }}" method="POST" style="display: inline;">
-                                <button type="submit" title="Reindexar" 
-                                    style="background: #fff; color: #6b7280; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
-                                    <i class="bi bi-arrow-clockwise"></i>
-                                </button>
-                            </form>
-                            <button title="Eliminar" 
-                                onclick="confirmAction('¿Eliminar documento?', 'Esta acción borrará el archivo físico y su índice semántico permanentemente.', function(){ 
-                                    const f = document.createElement('form');
-                                    f.method = 'POST';
-                                    f.action = '{{ url_for('delete_document', doc_id=doc.id) }}';
-                                    document.body.appendChild(f);
-                                    f.submit();
-                                })"
-                                style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                            {% endif %}
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="documentos-container">
+    <div class="documentos-header">
+        <i class="bi bi-folder2-open"></i> {{ documentos|length }} documento(s) registrados
     </div>
-    {% else %}
-    <div style="text-align: center; padding: 2.5rem 0; color: #9ca3af;">
-        <i class="bi bi-folder2-open" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
-        <p style="margin: 0; font-size: 0.875rem;">No hay documentos registrados aún.</p>
+
+    {% for doc in documentos %}
+    <div class="documentos-card" 
+         data-filename="{{ doc.filename | lower }}"
+         data-type="{{ doc.doc_type or '' }}"
+         data-year="{{ doc.doc_year or '' }}"
+         data-keywords="{{ doc.keywords | join(' ') | lower if doc.keywords else '' }}"
+         data-summary="{{ doc.summary | lower if doc.summary else '' }}">
+        
+        <div class="card-header">
+            <div class="card-meta">
+                <i class="bi bi-file-earmark"></i>
+                ID: #{{ doc.id }} · {{ doc.created_at.strftime('%d/%m/%Y %H:%M') if doc.created_at else '—' }}
+            </div>
+            <div class="card-actions">
+                {% if doc.processing_status == 'completed' %}
+                    <span class="status-badge status-completed">
+                        <i class="bi bi-check-circle"></i> LISTO
+                    </span>
+                {% elif doc.processing_status == 'failed' %}
+                    <span class="status-badge status-error" title="Ver error en logs">
+                        <i class="bi bi-exclamation-triangle"></i> ERROR
+                    </span>
+                {% else %}
+                    <span class="status-badge status-pending">
+                        <i class="bi bi-clock"></i> PENDIENTE
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card-title">
+            <div class="doc-filename">{{ doc.filename }}</div>
+            {% if doc.doc_type %}
+            <span class="doc-type">{{ doc.doc_type }}</span>
+            {% endif %}
+            {% if doc.doc_year %} · {{ doc.doc_year }}{% endif %}
+        </div>
+
+        {% if doc.summary %}
+        <div class="card-summary">
+            {{ doc.summary[:120] }}{% if doc.summary|length > 120 %}...{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="card-footer">
+            <div class="card-stats">
+                <span class="stat-item">
+                    <i class="bi bi-cpu"></i> {{ doc.chunk_count or 0 }} chunks
+                </span>
+                {% if doc.is_indexed %}
+                    <span class="stat-item indexed">
+                        <i class="bi bi-check2-circle"></i> Indexado
+                    </span>
+                {% else %}
+                    <span class="stat-item not-indexed">
+                        <i class="bi bi-dash-circle"></i> Sin índice
+                    </span>
+                {% endif %}
+            </div>
+            <div class="action-buttons">
+                <a href="{{ url_for('consultar', doc_id=doc.id) }}" class="action-btn action-consultar" title="Consultar">
+                    <i class="bi bi-chat-left-text"></i>
+                </a>
+                <a href="{{ url_for('download_document', doc_id=doc.id) }}" class="action-btn action-descargar" title="Descargar original">
+                    <i class="bi bi-download"></i>
+                </a>
+                {% if session.get('user_role') == 'admin' %}
+                <form action="{{ url_for('reindex_document', doc_id=doc.id) }}" method="POST" class="action-form">
+                    <button type="submit" class="action-btn action-reindexar" title="Reindexar">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </form>
+                <form action="{{ url_for('delete_document', doc_id=doc.id) }}" method="POST" class="action-form">
+                    <button type="button" class="action-btn action-eliminar" title="Eliminar" 
+                            onclick="confirmAction('¿Eliminar documento?', 'Esta acción borrará el archivo físico y su índice semántico permanentemente.', function(){ 
+                                const f = document.createElement('form');
+                                f.method = 'POST';
+                                f.action = '{{ url_for('delete_document', doc_id=doc.id) }}';
+                                document.body.appendChild(f);
+                                f.submit();
+                            })">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
     </div>
-    {% endif %}
+    {% endfor %}
 </div>
+
+<style>
+/* Estilos específicos para documentos - exactamente como historial */
+.documentos-container {
+    padding: 0;
+}
+
+.documentos-header {
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0;
+    position: sticky;
+    top: 0;
+    background: var(--color-bg);
+    z-index: 10;
+}
+
+        /* Cards - mismo estilo que historial */
+        .documentos-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            margin-bottom: 0.85rem;
+            transition: var(--transition);
+        }
+
+        .documentos-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .card-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .card-title {
+            margin-bottom: 0.75rem;
+        }
+
+        .doc-filename {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--color-text-main);
+            margin-bottom: 0.25rem;
+        }
+
+        .doc-type {
+            background: var(--color-info-bg);
+            color: var(--color-info);
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        .card-summary {
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            line-height: 1.5;
+            margin-bottom: 1rem;
+            font-style: italic;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .card-stats {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+        }
+
+        .stat-item.indexed {
+            color: var(--color-success);
+        }
+
+        .stat-item.not-indexed {
+            color: var(--color-text-muted);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .action-consultar {
+            background: var(--color-primary);
+            color: var(--color-text-inverse);
+        }
+
+        .action-consultar:hover {
+            background: var(--color-primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .action-descargar {
+            background: var(--color-success-bg);
+            color: var(--color-success);
+        }
+
+        .action-descargar:hover {
+            background: var(--color-success);
+            transform: translateY(-1px);
+        }
+
+        .action-reindexar {
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            border: 1px solid var(--color-border);
+        }
+
+        .action-reindexar:hover {
+            background: var(--color-surface-alt);
+            transform: translateY(-1px);
+        }
+
+        .action-eliminar {
+            background: var(--color-error-bg);
+            color: var(--color-error);
+        }
+
+        .action-eliminar:hover {
+            background: var(--color-error);
+            transform: translateY(-1px);
+        }
+
+        .action-form {
+            display: inline;
+        }
+
+        .status-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .status-completed {
+            background: var(--color-success-bg);
+            color: var(--color-success);
+            border: 1px solid var(--color-success-border);
+        }
+
+        .status-error {
+            background: var(--color-error-bg);
+            color: var(--color-error);
+            border: 1px solid var(--color-error-border);
+        }
+
+        .status-pending {
+            background: var(--color-warning-bg);
+            color: var(--color-warning);
+            border: 1px solid var(--color-warning-border);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .documentos-layout {
+                height: calc(100vh - 180px);
+            }
+
+            .documentos-content {
+                padding: 0.75rem;
+            }
+
+            .card-footer {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .action-buttons {
+                align-self: flex-end;
+            }
+
+            .action-btn {
+                width: 28px;
+                height: 28px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+{% else %}
+    <div class="empty-state">
+        <i class="bi bi-folder2-open"></i>
+        <p>No hay documentos registrados aún.</p>
+    </div>
+{% endif %}
 
 <script>
 const searchInput = document.getElementById('doc-search-input');
@@ -195,7 +428,7 @@ function filtrar() {
     const tipo = filterType.value;
     const year = filterYear.value;
 
-    const filas = document.querySelectorAll('tr[data-filename]');
+    const filas = document.querySelectorAll('div[data-filename]');
     let visibles = 0;
 
     filas.forEach(fila => {

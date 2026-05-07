@@ -208,7 +208,7 @@ class RagService:
         'oficio': ['oficio', 'oficios'],
         'circular': ['circular', 'circulares'],
         'directiva': ['directiva', 'directivas'],
-        'web': ['web', 'página web', 'website', 'sitio web'],
+        'web': ['documento web', 'pagina web indexada', 'sitio web guardado', 'contenido web'],
     }
 
     def _detect_metadata_filters(self, question: str) -> Dict:
@@ -225,6 +225,14 @@ class RagService:
                 # Buscar palabra completa (con límites de palabra)
                 pattern = r'\b' + re.escape(keyword) + r'\b'
                 if re.search(pattern, q_lower):
+                    # EXCEPCIÓN: No activar filtro 'web' para consultas generales
+                    if doc_type == 'web' and not any(indicator in q_lower for indicator in [
+                        'documento web', 'pagina web indexada', 'sitio web guardado', 
+                        'contenido web', 'listar webs', 'buscar webs'
+                    ]):
+                        # Es una consulta general sobre "web", no un filtro
+                        continue
+                    
                     filters['doc_type'] = doc_type
                     print(f"[METADATA FILTER] Detectado tipo: {doc_type}")
                     break
@@ -549,23 +557,42 @@ Responde solo: GREETING, METADATA o CONTENT"""
         
         # 2. Formateo de las fuentes de Contexto (limitado según tipo)
         # Limitar contexto según tipo — numeric SIEMPRE tiene prioridad
+        # Aumentado para modelos complejos y mejor contexto web
         if query_type == "numeric":
-            max_chunks = 8
+            max_chunks = 10
         elif question_type == 'synthesis':
-            max_chunks = 5
+            max_chunks = 8
         elif question_type == 'factual':
-            max_chunks = 4
+            max_chunks = 8  # Aumentado de 4 a 8 para mejor contexto
         else:
-            max_chunks = 6
+            max_chunks = 10  # Aumentado de 6 a 10 para modelos complejos
         
         context_parts = [res['text'] for res in valid_results[:max_chunks]]
         context_text = "\n\n".join(context_parts)
         
         # --- DEBUG: Imprimir lo que se recuperó ---
         print(f"[DEBUG] Chunks recuperados: {len(valid_results)}, usados: {len(context_parts)} (tipo: {question_type})")
+        
+        # Identificar si son documentos web para mejor debugging
+        web_docs = set()
+        for r in valid_results[:max_chunks]:
+            doc_id = r.get('document_id')
+            if doc_id:
+                # Verificar si es documento web
+                doc_info = self.persistence.get_document_by_id(doc_id) if self.persistence else None
+                if doc_info and doc_info.get('source_type') == 'web':
+                    web_docs.add(doc_id)
+        
+        if web_docs:
+            print(f"[DEBUG] Documentos WEB en contexto: {len(web_docs)} docs - IDs: {web_docs}")
+        
         for i, r in enumerate(valid_results[:3]):
             print(f"[DEBUG] Chunk {i}: score={r.get('score', 0):.3f}, doc_id={r.get('document_id')}, text[:100]={r.get('text', '')[:100]}...")
         print(f"[DEBUG] Contexto total length: {len(context_text)} chars")
+        
+        # Verificar si el contexto es suficiente para modelos complejos
+        if len(context_text) < 500 and question_type in ['factual', 'synthesis']:
+            print(f"[WARN] Contexto corto ({len(context_text)} chars) para tipo {question_type} - podría ser insuficiente")
         
         # 2.5 Formateo del Historial (Memoria)
         historial_texto = ""
@@ -617,8 +644,8 @@ El usuario está preguntando específicamente sobre este documento. Analiza TODO
         }
         
         try:
-            # Timeout según complejidad (aumentado para entornos lentos)
-            timeout = 120 if question_type == 'factual' else 180
+            # Timeout según complejidad (aumentado para modelos complejos y contexto web)
+            timeout = 180 if question_type == 'factual' else 240  # Aumentado para mejor procesamiento
             response = requests.post(url, json=payload, timeout=timeout)
             response.raise_for_status()
             data = response.json()

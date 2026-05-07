@@ -9,24 +9,123 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         :root {
-            /* Design Tokens */
+            /* Modo Claro - Variables Principales */
             --color-primary: #1d4ed8;
             --color-primary-hover: #1e40af;
             --color-primary-light: #eff6ff;
             --color-bg: #f8fafc;
             --color-surface: #ffffff;
+            --color-surface-alt: #f1f5f9;
             --color-border: #e2e8f0;
+            --color-border-light: #f1f5f9;
             --color-success: #10b981;
             --color-success-bg: #f0fdf4;
+            --color-success-border: #86efac;
             --color-error: #ef4444;
             --color-error-bg: #fef2f2;
+            --color-error-border: #fca5a5;
+            --color-warning: #f59e0b;
+            --color-warning-bg: #fef3c7;
+            --color-warning-border: #fcd34d;
+            --color-info: #0ea5e9;
+            --color-info-bg: #f0f9ff;
+            --color-info-border: #7dd3fc;
             --color-text-main: #1e293b;
+            --color-text-secondary: #334155;
             --color-text-muted: #64748b;
+            --color-text-inverse: #ffffff;
+            --color-sidebar-bg: #ffffff;
+            --color-sidebar-border: #e5e7eb;
+            --color-sidebar-hover: #f3f4f6;
+            --color-sidebar-active: #eff6ff;
+            --color-code-bg: #f8fafc;
+            --color-code-border: #e2e8f0;
+            --color-table-hover: #f8fafc;
             --radius-lg: 12px;
             --radius-md: 8px;
             --radius-pill: 50px;
             --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
             --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            --transition: all 0.2s ease;
+        }
+
+        /* Modo Oscuro - Variables Override */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --color-primary: #3b82f6;
+                --color-primary-hover: #2563eb;
+                --color-primary-light: #1e3a8a;
+                --color-bg: #0f172a;
+                --color-surface: #1e293b;
+                --color-surface-alt: #334155;
+                --color-border: #334155;
+                --color-border-light: #475569;
+                --color-success: #22c55e;
+                --color-success-bg: #052e16;
+                --color-success-border: #16a34a;
+                --color-error: #ef4444;
+                --color-error-bg: #450a0a;
+                --color-error-border: #dc2626;
+                --color-warning: #f59e0b;
+                --color-warning-bg: #451a03;
+                --color-warning-border: #d97706;
+                --color-info: #0ea5e9;
+                --color-info-bg: #072f4f;
+                --color-info-border: #0284c7;
+                --color-text-main: #f1f5f9;
+                --color-text-secondary: #e2e8f0;
+                --color-text-muted: #94a3b8;
+                --color-text-inverse: #0f172a;
+                --color-sidebar-bg: #1e293b;
+                --color-sidebar-border: #334155;
+                --color-sidebar-hover: #334155;
+                --color-sidebar-active: #1e3a8a;
+                --color-code-bg: #0f172a;
+                --color-code-border: #334155;
+                --color-table-hover: #334155;
+                --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+                --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+                --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            }
+        }
+
+        /* Theme Toggle Manual */
+        [data-theme="dark"] {
+            --color-primary: #3b82f6;
+            --color-primary-hover: #2563eb;
+            --color-primary-light: #1e3a8a;
+            --color-bg: #0f172a;
+            --color-surface: #1e293b;
+            --color-surface-alt: #334155;
+            --color-border: #334155;
+            --color-border-light: #475569;
+            --color-success: #22c55e;
+            --color-success-bg: #052e16;
+            --color-success-border: #16a34a;
+            --color-error: #ef4444;
+            --color-error-bg: #450a0a;
+            --color-error-border: #dc2626;
+            --color-warning: #f59e0b;
+            --color-warning-bg: #451a03;
+            --color-warning-border: #d97706;
+            --color-info: #0ea5e9;
+            --color-info-bg: #072f4f;
+            --color-info-border: #0284c7;
+            --color-text-main: #f1f5f9;
+            --color-text-secondary: #e2e8f0;
+            --color-text-muted: #94a3b8;
+            --color-text-inverse: #0f172a;
+            --color-sidebar-bg: #1e293b;
+            --color-sidebar-border: #334155;
+            --color-sidebar-hover: #334155;
+            --color-sidebar-active: #1e3a8a;
+            --color-code-bg: #0f172a;
+            --color-code-border: #334155;
+            --color-table-hover: #334155;
+            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
         }
 
         /* ── RESET & BASE ─────────────────────────────── */
@@ -61,11 +160,11 @@
             width: 240px;
             min-width: 240px;
             height: 100vh;
-            background: #fff;
-            border-right: 1px solid #e5e7eb;
+            background: var(--color-sidebar-bg);
+            border-right: 1px solid var(--color-sidebar-border);
             display: flex;
             flex-direction: column;
-            transition: width 0.22s ease, min-width 0.22s ease;
+            transition: var(--transition);
             overflow: hidden;
             flex-shrink: 0;
             position: relative;
@@ -81,7 +180,7 @@
             align-items: center;
             justify-content: space-between;
             padding: 1.1rem 1rem 0.9rem;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid var(--color-sidebar-border);
             flex-shrink: 0;
         }
 
@@ -91,7 +190,7 @@
             gap: 0.55rem;
             font-weight: 700;
             font-size: 1rem;
-            color: #1d4ed8;
+            color: var(--color-primary);
             white-space: nowrap;
             overflow: hidden;
         }
@@ -114,18 +213,19 @@
             background: none;
             border: none;
             cursor: pointer;
-            color: #6b7280;
+            color: var(--color-text-muted);
             padding: 4px;
             border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            transition: var(--transition);
         }
 
         .sidebar-toggle:hover {
-            background: #f3f4f6;
-            color: #111827;
+            background: var(--color-sidebar-hover);
+            color: var(--color-text-main);
         }
 
         .sidebar-toggle i {
@@ -145,23 +245,23 @@
             align-items: center;
             gap: 0.65rem;
             padding: 0.55rem 1rem;
-            color: #374151;
+            color: var(--color-text-secondary);
             text-decoration: none;
             font-size: 0.875rem;
             white-space: nowrap;
             border-left: 3px solid transparent;
-            transition: background 0.12s, color 0.12s;
+            transition: var(--transition);
         }
 
         .sidebar nav a:hover {
-            background: #f3f4f6;
-            color: #111827;
+            background: var(--color-sidebar-hover);
+            color: var(--color-text-main);
         }
 
         .sidebar nav a.active {
-            background: #eff6ff;
-            border-left-color: #1d4ed8;
-            color: #1d4ed8;
+            background: var(--color-sidebar-active);
+            border-left-color: var(--color-primary);
+            color: var(--color-primary);
             font-weight: 600;
         }
 
@@ -188,7 +288,7 @@
         /* SIDEBAR FOOTER */
         .sidebar-footer {
             padding: 0.75rem 1rem;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid var(--color-sidebar-border);
             flex-shrink: 0;
         }
 
@@ -197,7 +297,7 @@
             align-items: center;
             gap: 0.55rem;
             font-size: 0.82rem;
-            color: #6b7280;
+            color: var(--color-text-secondary);
             white-space: nowrap;
             margin-bottom: 0.5rem;
         }
@@ -243,58 +343,81 @@
             justify-content: center;
         }
 
-        .sidebar.collapsed .logout-btn span {
-            opacity: 0;
-            width: 0;
-        }
+.sidebar.collapsed .logout-btn span {
+    opacity: 0;
+    width: 0;
+}
 
-        /* ── MAIN CONTENT ─────────────────────────────── */
-        .main-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            min-width: 0;
-        }
+/* ── MAIN CONTENT ─────────────────────────────── */
+.main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
 
-        .topbar {
-            background: #fff;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 0.75rem 1.75rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-shrink: 0;
-        }
+.page-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.5rem;
+    min-height: 0; /* crítico para que flex no desborde */
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
 
-        .topbar-title h4 {
-            margin: 0;
-            font-size: 1.05rem;
-            font-weight: 700;
-            color: #111827;
-        }
+.topbar {
+    height: 60px;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    flex-shrink: 0;
+}
 
-        .topbar-title small {
-            color: #6b7280;
-            font-size: 0.78rem;
-        }
+.topbar-title h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text-main);
+}
 
-        .topbar-user {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            font-size: 0.85rem;
-            color: #6b7280;
-        }
+.topbar-title small {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    margin-top: 2px;
+}
 
-        .page-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1.75rem;
-        }
+.topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
 
-        /* ── TOAST NOTIFICATIONS ──────────────────────── */
-        #toast-container {
+.theme-toggle {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0.5rem;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.theme-toggle:hover {
+    background: var(--color-surface-alt);
+    color: var(--color-text-main);
+    border-color: var(--color-border-light);
+}
+    #toast-container {
             position: fixed;
             bottom: 1.5rem;
             right: 1.5rem;
@@ -322,23 +445,23 @@
         }
 
         .toast.success {
-            border-left-color: #16a34a;
-            background: #f0fdf4;
+            border-left-color: var(--color-success-border);
+            background: var(--color-success-bg);
         }
 
         .toast.error {
-            border-left-color: #dc2626;
-            background: #fef2f2;
+            border-left-color: var(--color-error-border);
+            background: var(--color-error-bg);
         }
 
         .toast.warning {
-            border-left-color: #d97706;
-            background: #fffbeb;
+            border-left-color: var(--color-warning-border);
+            background: var(--color-warning-bg);
         }
 
         .toast.info {
-            border-left-color: #2563eb;
-            background: #eff6ff;
+            border-left-color: var(--color-info-border);
+            background: var(--color-info-bg);
         }
 
         .toast-icon {
@@ -347,24 +470,24 @@
         }
 
         .toast.success .toast-icon {
-            color: #16a34a;
+            color: var(--color-success);
         }
 
         .toast.error .toast-icon {
-            color: #dc2626;
+            color: var(--color-error);
         }
 
         .toast.warning .toast-icon {
-            color: #d97706;
+            color: var(--color-warning);
         }
 
         .toast.info .toast-icon {
-            color: #2563eb;
+            color: var(--color-info);
         }
 
         .toast-body {
             flex: 1;
-            color: #111827;
+            color: var(--color-text-main);
             line-height: 1.5;
             font-weight: 500;
         }
@@ -421,24 +544,25 @@
         }
 
         #confirm-card {
-            background: #fff;
+            background: var(--color-surface);
             border-radius: 12px;
             padding: 1.75rem;
             max-width: 380px;
             width: 90%;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--color-border);
         }
 
         #confirm-card h5 {
             margin: 0 0 0.5rem;
             font-size: 1rem;
             font-weight: 700;
-            color: #111827;
+            color: var(--color-text-main);
         }
 
         #confirm-card p {
             margin: 0 0 1.25rem;
-            color: #6b7280;
+            color: var(--color-text-muted);
             font-size: 0.875rem;
         }
 
@@ -457,17 +581,17 @@
         }
 
         #confirm-cancel {
-            background: #f3f4f6;
-            color: #374151;
-            border-color: #e5e7eb;
+            background: var(--color-surface-alt);
+            color: var(--color-text-secondary);
+            border-color: var(--color-border);
         }
 
         #confirm-cancel:hover {
-            background: #e5e7eb;
+            background: var(--color-border);
         }
 
         #confirm-ok {
-            background: #dc2626;
+            background: var(--color-error);
             color: #fff;
         }
 
@@ -477,9 +601,9 @@
 
         /* ── CARDS & UTILITIES ────────────────────────── */
         .card {
-            background: #fff;
+            background: var(--color-surface);
             border-radius: 10px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--color-border);
             padding: 1.25rem;
             margin-bottom: 1rem;
         }
@@ -492,13 +616,13 @@
 
         .stat-icon {
             font-size: 1.6rem;
-            color: #1d4ed8;
+            color: var(--color-primary);
             flex-shrink: 0;
         }
 
         .stat-label {
             font-size: 0.78rem;
-            color: #6b7280;
+            color: var(--color-text-muted);
             display: block;
             margin-bottom: 0.15rem;
         }
@@ -506,15 +630,16 @@
         .stat-value {
             font-size: 1.75rem;
             font-weight: 700;
-            color: #111827;
+            color: var(--color-text-main);
             line-height: 1;
         }
 
         .source-card {
             padding: 0.85rem 1rem;
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--color-border);
             border-radius: 8px;
             margin-bottom: 0.75rem;
+            background: var(--color-surface);
         }
 
         .source-card .source-header {
@@ -530,12 +655,12 @@
             display: flex;
             align-items: center;
             gap: 0.3rem;
-            color: #111827;
+            color: var(--color-text-main);
         }
 
         .score-badge {
-            background: #1d4ed8;
-            color: #fff;
+            background: var(--color-primary);
+            color: var(--color-text-inverse);
             padding: 0.15rem 0.55rem;
             border-radius: 20px;
             font-size: 0.75rem;
@@ -545,9 +670,9 @@
         }
 
         .source-fragment {
-            color: #6b7280;
+            color: var(--color-text-muted);
             font-size: 0.82rem;
-            border-left: 3px solid #e5e7eb;
+            border-left: 3px solid var(--color-border);
             padding-left: 0.75rem;
             margin-top: 0.5rem;
             line-height: 1.5;
@@ -841,7 +966,7 @@
                     <span>{{ session.get('username') }}</span>
                 </div>
                 <button class="logout-btn"
-                    onclick="confirmAction('¿Cerrar sesión?', '¿Deseas salir del sistema?', function(){ window.location = '{{ url_for('logout') }}'; })">
+                    onclick="confirmAction(&quot;¿Cerrar sesión?&quot;, &quot;¿Deseas salir del sistema?&quot;, function(){ window.location = &quot;{{ url_for('logout') }}&quot;; })">
                     <i class="bi bi-box-arrow-right"></i>
                     <span>Salir</span>
                 </button>
@@ -855,9 +980,14 @@
                     <h4>{% block page_title %}{% endblock %}</h4>
                     <small>{% block page_subtitle %}{% endblock %}</small>
                 </div>
-                <div class="topbar-user">
-                    <i class="bi bi-person-circle"></i>
-                    {{ session.get('username') }}
+                <div class="topbar-actions">
+                    <button id="theme-toggle" class="theme-toggle" title="Cambiar tema">
+                        <i class="bi bi-moon"></i>
+                    </button>
+                    <div class="topbar-user">
+                        <i class="bi bi-person-circle"></i>
+                        {{ session.get('username') }}
+                    </div>
                 </div>
             </div>
             <div class="page-body">
@@ -873,8 +1003,8 @@
         document.addEventListener('DOMContentLoaded', function () {
             {% for category, message in messages %}
             showToast({{ message | tojson }}, {{ category | tojson }});
-        {% endfor %}
-});
+            {% endfor %}
+        });
     </script>
     {% endif %}
     {% endwith %}
@@ -889,8 +1019,8 @@
             document.addEventListener('DOMContentLoaded', function () {
                 {% for category, message in messages %}
                 showToast({{ message | tojson }}, {{ category | tojson }});
-            {% endfor %}
-    });
+                {% endfor %}
+            });
         </script>
         {% endif %}
         {% endwith %}
@@ -943,8 +1073,59 @@
             });
         });
 
+        // ── THEME MANAGEMENT ─────────────────────────────
+        function initTheme() {
+            // Detectar preferencia del sistema o usar guardado
+            const savedTheme = localStorage.getItem('theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+            applyTheme(theme);
+        }
+
+        function applyTheme(theme) {
+            const root = document.documentElement;
+            if (theme === 'dark') {
+                root.setAttribute('data-theme', 'dark');
+            } else {
+                root.removeAttribute('data-theme');
+            }
+            localStorage.setItem('theme', theme);
+            
+            // Actualizar botón de toggle
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) {
+                const icon = themeToggle.querySelector('i');
+                if (icon) {
+                    icon.className = theme === 'dark' ? 'bi bi-sun' : 'bi bi-moon';
+                }
+            }
+        }
+
+        function toggleTheme() {
+            const currentTheme = localStorage.getItem('theme') || 'light';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            applyTheme(newTheme);
+        }
+
         // ── SIDEBAR TOGGLE ─────────────────────────────
         document.addEventListener('DOMContentLoaded', function () {
+            // Inicializar tema
+            initTheme();
+            
+            // Configurar toggle de tema
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', toggleTheme);
+            }
+            
+            // Escuchar cambios en preferencia del sistema
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                if (!localStorage.getItem('theme')) {
+                    applyTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+            
             const sidebar = document.getElementById('sidebar');
             const btn = document.getElementById('sidebar-toggle');
             const icon = document.getElementById('toggle-icon');

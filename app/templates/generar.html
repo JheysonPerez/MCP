@@ -9,7 +9,7 @@
 <!-- FORMULARIO -->
 <div>
   <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1.75rem;">
-    <h3 style="margin: 0 0 1.5rem; font-size: 1rem; font-weight: 700;">Nuevo documento</h3>
+    <h3 style="margin: 0 0 1.5rem; font-size: 1rem; font-weight: 700; color: var(--color-text-main);">Nuevo documento</h3>
 
     <form action="{{ url_for('generar_crear') }}" method="POST">
 
@@ -29,7 +29,7 @@
           <input type="radio" name="doc_type" value="{{ val }}" {% if val == 'libre' %}checked{% endif %} style="display: none;" onchange="updatePlaceholder(this.value)">
           <div class="tipo-card" data-val="{{ val }}" style="border: 1.5px solid var(--color-border); border-radius: var(--radius-md); padding: 0.6rem 0.4rem; text-align: center; font-size: 0.8rem; transition: all 0.15s; {% if val == 'libre' %}border-color: var(--color-primary); background: var(--color-primary-light); color: var(--color-primary); font-weight: 700;{% endif %}">
             <div style="font-size: 1.3rem;"><i class="bi {{ icon }}"></i></div>
-            <div>{{ label }}</div>
+            <div style="color: var(--color-text-main);">{{ label }}</div>
           </div>
         </label>
         {% endfor %}
@@ -37,7 +37,7 @@
 
       <!-- MODO -->
       <label style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Fuente de información</label>
-      <select name="mode" id="mode-select" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 1rem; font-size: 0.9rem;" onchange="toggleDocSelect()">
+      <select name="mode" id="mode-select" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 1rem; font-size: 0.9rem; background: var(--color-surface); color: var(--color-text-main);" onchange="toggleDocSelect()">
         <option value="prompt_libre">Solo mis instrucciones</option>
         <option value="basado_repositorio">Usando el repositorio completo</option>
         <option value="basado_documento">Basado en un documento específico</option>
@@ -45,7 +45,7 @@
 
       <div id="doc-select-container" style="display: none; margin-bottom: 1rem;">
         <label style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); display: block; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Documento de referencia</label>
-        <select name="source_doc_id" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.9rem;">
+        <select name="source_doc_id" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.9rem; background: var(--color-surface); color: var(--color-text-main);">
           <option value="">-- Selecciona una fuente --</option>
           
           {% if documentos_lista %}

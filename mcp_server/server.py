@@ -432,6 +432,13 @@ def agregar_fuente_web(
             source_type='web'
         )
 
+        # Actualizar estado a 'completed' para permitir indexación
+        persistence.update_document_status(
+            doc_id,
+            processing_status='completed',
+            processed_path=str(processed_path)
+        )
+
         # Indexar si se solicita
         chunks_count = 0
         if indexar_inmediatamente:
